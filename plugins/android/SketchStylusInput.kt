@@ -45,9 +45,13 @@ class SketchStylusInput(private val activity: Activity) {
   }
 
   private fun target(event: MotionEvent, index: Int): WebView? {
-    val x = event.rawX - event.x + event.getX(index)
-    val y = event.rawY - event.y + event.getY(index)
-    return hit(activity.window.decorView, x.toInt(), y.toInt()) as? WebView
+    val root = activity.window.decorView
+    root.getLocationOnScreen(location)
+    // Global visible rectangles use root coordinates, while raw MotionEvent
+    // positions use screen coordinates (different in split-screen windows).
+    val x = event.rawX - event.x + event.getX(index) - location[0]
+    val y = event.rawY - event.y + event.getY(index) - location[1]
+    return hit(root, x.toInt(), y.toInt()) as? WebView
   }
 
   private fun sample(view: WebView, event: MotionEvent, index: Int, type: String, history: Int = -1): JSONObject {
