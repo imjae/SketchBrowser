@@ -20,10 +20,12 @@ export function useNotebook(browser: RefObject<BrowserHandle | null>, settings: 
   const [error, setError] = useState<string | null>(null);
   const [limit, setLimit] = useState(false);
   const [strokeCount, setStrokeCount] = useState(0);
+  const [penButtonPressed, setPenButtonPressed] = useState(false);
   const [history, setHistory] = useState({ canUndo: false, canRedo: false });
   const onDocumentLoading = useCallback(() => {
     active.current = null;
     setStatus('loading'); setError(null); setLimit(false); setStrokeCount(0);
+    setPenButtonPressed(false);
     setHistory({ canUndo: false, canRedo: false });
   }, []);
 
@@ -71,6 +73,7 @@ export function useNotebook(browser: RefObject<BrowserHandle | null>, settings: 
       const session: Session = { id: message.documentId, url, revision: message.revision, loaded: false, page: null };
       active.current = session;
       setStatus('loading'); setError(null); setLimit(false); setStrokeCount(0);
+      setPenButtonPressed(false);
       setHistory({ canUndo: false, canRedo: false });
       try {
         await notebook.settle();
@@ -93,6 +96,7 @@ export function useNotebook(browser: RefObject<BrowserHandle | null>, settings: 
     const session = active.current;
     if (!session || session.id !== message.documentId || session.url !== url || !session.loaded) return;
     if (message.type === 'browse') { onBrowseGesture(); return; }
+    if (message.type === 'penButton') { setPenButtonPressed(message.pressed!); return; }
     if (message.type === 'limit') { setLimit(true); return; }
     setHistory({ canUndo: message.canUndo, canRedo: message.canRedo });
     if (message.type === 'change' && message.strokes && message.revision > session.revision) {
@@ -112,5 +116,5 @@ export function useNotebook(browser: RefObject<BrowserHandle | null>, settings: 
     else browser.current?.reload();
   };
 
-  return { pages, status, error, limit, strokeCount, history, onMessage, onDocumentLoading, retrySave };
+  return { pages, status, error, limit, strokeCount, penButtonPressed, history, onMessage, onDocumentLoading, retrySave };
 }

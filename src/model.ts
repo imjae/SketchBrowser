@@ -25,13 +25,14 @@ export type PageNotes = {
 };
 export type InkMessage = {
   channel: 'sketch-browser';
-  type: 'ready' | 'change' | 'state' | 'limit' | 'browse';
+  type: 'ready' | 'change' | 'state' | 'limit' | 'browse' | 'penButton';
   documentId: string;
   title: string;
   revision: number;
   canUndo: boolean;
   canRedo: boolean;
   strokes?: Stroke[];
+  pressed?: boolean;
 };
 export type InkCommand =
   | { type: 'restore'; strokes: Stroke[] }
@@ -64,10 +65,11 @@ export function parseInkMessage(raw: string): InkMessage | null {
   if (raw.length > 1_800_000) return null;
   try {
     const m = JSON.parse(raw);
-    if (m?.channel !== 'sketch-browser' || !['ready', 'change', 'state', 'limit', 'browse'].includes(m.type) ||
+    if (m?.channel !== 'sketch-browser' || !['ready', 'change', 'state', 'limit', 'browse', 'penButton'].includes(m.type) ||
       typeof m.documentId !== 'string' || m.documentId.length > 100 || typeof m.title !== 'string' || m.title.length > 300 ||
       !Number.isSafeInteger(m.revision) || m.revision < 0 || typeof m.canUndo !== 'boolean' || typeof m.canRedo !== 'boolean') return null;
     if (m.type === 'change' && !validStrokes(m.strokes)) return null;
+    if (m.type === 'penButton' && typeof m.pressed !== 'boolean') return null;
     return m as InkMessage;
   } catch { return null; }
 }

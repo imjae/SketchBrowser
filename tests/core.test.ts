@@ -42,6 +42,9 @@ test('the WebView bridge rejects malformed or excessive data', () => {
   assert.equal(parseInkMessage('not json'), null);
   assert.equal(parseInkMessage(JSON.stringify({ ...message, strokes: [{ ...stroke, color: 'url(evil)' }] })), null);
   assert.equal(parseInkMessage(JSON.stringify({ ...message, revision: -1 })), null);
+  assert.equal(parseInkMessage(JSON.stringify({ ...message, type: 'penButton', pressed: true }))?.pressed, true);
+  assert.equal(parseInkMessage(JSON.stringify({ ...message, type: 'penButton', pressed: false }))?.pressed, false);
+  assert.equal(parseInkMessage(JSON.stringify({ ...message, type: 'penButton' })), null);
   assert.equal(parseInkMessage(JSON.stringify({ ...message, strokes: [{ ...stroke, points: [{ x: null, y: 2, pressure: 0.5 }] }] })), null);
   assert.equal(validStrokes([{ ...stroke, points: Array(MAX_POINTS + 1).fill(stroke.points[0]) }]), false);
   assert.equal(validStrokes([{ ...stroke, anchor: { selector: '#p', text: 'Paragraph', x: 0, y: 30, width: 300 } }]), true);

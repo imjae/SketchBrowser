@@ -31,7 +31,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
-    "test:e2e": "node --import tsx tests/browser.e2e.mjs && node --import tsx tests/interaction.e2e.mjs",
+    "test:e2e": "node --import tsx tests/browser.e2e.mjs && node --import tsx tests/interaction.e2e.mjs && node --import tsx tests/pen-button.e2e.mjs",
     "export:android": "expo export --platform android",
     "export:web": "expo export --platform web",
     "prebuild:android": "expo prebuild --platform android --no-install"

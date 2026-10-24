@@ -112,7 +112,8 @@ function SketchBrowser() {
   const chooseTool = (tool: Tool) => setSettings((previous) => ({ ...previous, tool,
     color: tool === 'highlighter' ? '#e6bc42' : previous.tool === 'highlighter' ? '#315de8' : previous.color }));
   const saveLabels = { loading: '필기 불러오는 중', ready: '필기할 준비 완료', saving: '저장 중…', saved: '기기에 저장됨', error: '저장 확인 필요' };
-  const currentTool = TOOLS.find((item) => item.tool === settings.tool)!;
+  const activeTool = notes.penButtonPressed ? 'eraser' : settings.tool;
+  const currentTool = TOOLS.find((item) => item.tool === activeTool)!;
   const error = addressError || notes.error || pageError;
   const webUnavailable = Platform.OS === 'web' && !isDemoUrl(navigation.url);
 
@@ -182,9 +183,9 @@ function SketchBrowser() {
           {!contentFullscreen && !toolbarCollapsed && <View style={s.toolbar}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.toolbarContent}>
               <View style={s.toolGroup}>{TOOLS.map(({ tool, label, icon }) => <Pressable key={tool} accessibilityRole="button" accessibilityLabel={label}
-                accessibilityState={{ selected: settings.tool === tool }} onPress={() => chooseTool(tool)}
-                style={({ pressed }) => [s.toolButton, settings.tool === tool && s.toolButtonActive, pressed && s.pressed]}>
-                <Icon name={icon} size={19} color={settings.tool === tool ? '#f7faf4' : '#7a8376'} /><Text style={[s.toolLabel, settings.tool === tool && s.toolLabelActive]}>{label}</Text>
+                accessibilityState={{ selected: activeTool === tool }} onPress={() => chooseTool(tool)}
+                style={({ pressed }) => [s.toolButton, activeTool === tool && s.toolButtonActive, pressed && s.pressed]}>
+                <Icon name={icon} size={19} color={activeTool === tool ? '#f7faf4' : '#7a8376'} /><Text style={[s.toolLabel, activeTool === tool && s.toolLabelActive]}>{label}</Text>
               </Pressable>)}</View>
               <View style={s.divider} />
               <View style={s.colorGroup}>{COLORS.map((color) => <Pressable key={color} accessibilityRole="button" accessibilityLabel={`색상 ${color}`}
@@ -211,7 +212,7 @@ function SketchBrowser() {
           {!contentFullscreen && <View style={s.statusBar}>
             <View style={s.saveStatus}>{!webUnavailable && (notes.status === 'saving' || notes.status === 'loading') ? <ActivityIndicator size={12} color={GREEN} /> : <Icon name={notes.status === 'saved' ? 'check' : 'save'} size={13} color={notes.status === 'error' ? '#c47943' : GREEN} />}
               <Text accessibilityLiveRegion="polite" style={s.statusText}>{webUnavailable ? 'Android 앱에서 열어 주세요' : saveLabels[notes.status]}</Text></View>
-            {!compact && <Text style={s.modeHint}>{settings.tool === 'browse' ? '탐색 모드 · 스크롤하고 링크를 열 수 있어요' : `${currentTool.label} 모드${settings.penOnly ? ' · 펜만 입력' : ''} · 두 손가락 드래그로 탐색`}</Text>}
+            {!compact && <Text style={s.modeHint}>{activeTool === 'browse' ? '탐색 모드 · 스크롤하고 링크를 열 수 있어요' : `${currentTool.label} 모드${notes.penButtonPressed ? ' · 펜 버튼을 놓으면 이전 도구로 복귀' : settings.penOnly ? ' · 펜만 입력' : ''} · 두 손가락 드래그로 탐색`}</Text>}
             <Text style={s.strokeCount}>{notes.strokeCount}개의 획</Text>
           </View>}
         </View>
