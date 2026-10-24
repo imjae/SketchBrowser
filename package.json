@@ -33,7 +33,8 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "test:e2e": "node --import tsx tests/browser.e2e.mjs",
     "export:android": "expo export --platform android",
-    "export:web": "expo export --platform web"
+    "export:web": "expo export --platform web",
+    "prebuild:android": "expo prebuild --platform android --no-install"
   },
   "packageManager": "pnpm@11.25.0"
 }

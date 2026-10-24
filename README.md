@@ -59,7 +59,27 @@ E2E는 기본적으로 설치된 Google Chrome을 사용합니다. Playwright Ch
 
 `export:android`는 Android용 JavaScript/Hermes 번들 검증이며 **설치 가능한 APK 빌드는 아닙니다**. 이 환경에는 Android SDK·실물 태블릿이 없어 네이티브 WebView, S Pen 지연·압력, 손바닥 차단 동작은 실제 기기에서 추가 검증해야 합니다.
 
-설치용 APK가 필요하면 Expo 계정으로 EAS를 연결한 뒤 `pnpm dlx eas-cli build --platform android --profile preview`를 사용할 수 있습니다. `eas.json`에 APK 미리보기 프로필을 준비해 두었습니다. EAS 빌드는 아직 실행하지 않았습니다.
+## 태블릿에 APK 설치하기
+
+[GitHub Actions의 Android test APK](https://github.com/imjae/SketchBrowser/actions/workflows/android-apk.yml)에서 최신 성공 실행을 열고, **Artifacts → SketchBrowser-android-test**를 다운로드하세요. ZIP 안의 `SketchBrowser-0.1.0-test.apk`를 태블릿으로 옮겨 실행하면 설치됩니다. 설치 화면에서 요청하는 경우 해당 파일 앱 또는 브라우저의 **이 출처 허용**을 켜 주세요.
+
+이 APK는 앱 코드를 포함하므로 **Expo Go나 PC 개발 서버 없이 실행**됩니다. ARM64·ARMv7 Android 태블릿을 지원하며, 필기는 설치한 앱의 기기에 저장됩니다. 외부 웹페이지를 열 때에는 인터넷이 필요합니다. 서명은 Expo 템플릿의 테스트 키를 사용합니다.
+
+Actions는 `main`의 앱 코드 변경 시 실행되며 **Run workflow**로 수동 실행할 수도 있습니다. APK와 SHA-256 파일, 빌드 정보를 30일간 보관합니다. APK는 Git 소스에 넣지 않습니다.
+
+첫 테스트는 시작 노트에 필기 → 앱 완전히 종료 → 다시 실행해 복원 확인 → 외부 HTTPS 페이지에서 필기 순서로 진행하세요. S Pen 감도·손바닥 입력·회전 후 위치 보정은 실제 태블릿에서 확인해야 합니다.
+
+로컬에 Java 17과 Android SDK 36·NDK 27.1.12297006·CMake 3.22.1이 설치되어 있다면 다음 명령으로 같은 APK를 만들 수 있습니다.
+
+```powershell
+pnpm prebuild:android
+cd android
+.\gradlew.bat :app:assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+cd ..
+node scripts/collect-apk.mjs
+```
+
+생성 결과는 `dist/apk/`에 모입니다. 별도로 Expo 계정의 EAS를 사용하려면 `pnpm dlx eas-cli build --platform android --profile preview`를 실행할 수 있습니다. `eas.json`에 APK 미리보기 프로필이 준비되어 있습니다.
 
 ## 구조
 
