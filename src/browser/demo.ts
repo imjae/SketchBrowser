@@ -32,7 +32,7 @@ export function demoHtml(url: string): string {
   <blockquote id="quote">“읽는 순간의 생각을, 그 문장이 있는 자리에.”</blockquote>
   <div class="steps"><div class="step"><b>01 &nbsp; READ</b><p>탐색 모드에서<br>페이지를 읽고 이동해요.</p></div><div class="step"><b>02 &nbsp; SKETCH</b><p>펜과 형광펜으로<br>생각을 남겨요.</p></div><div class="step"><b>03 &nbsp; REVISIT</b><p>저장한 페이지를 열어<br>다시 이어서 읽어요.</p></div></div>
   <h2 id="practice-heading">여백은 당신의 것</h2>
-  <p id="practice-description">아래 공간에 첫 메모를 남겨 보세요. 스크롤하려면 탐색 도구로 바꿔 주세요. ‘펜만’ 옵션을 켜면 손가락과 손바닥으로 생기는 필기를 차단할 수 있어요.</p>
+  <p id="practice-description">아래 공간에 첫 메모를 남겨 보세요. 두 손가락으로 함께 드래그하면 탐색 모드로 바뀌고 바로 스크롤할 수 있어요. ‘펜만’ 옵션을 켜면 손가락과 손바닥으로 생기는 필기를 차단할 수 있어요.</p>
   <div class="paper" id="practice-paper"></div>
   <footer>SKETCHBROWSER &nbsp; / &nbsp; YOUR WEB, WITH YOUR THOUGHTS.</footer>
   </main></body></html>`;

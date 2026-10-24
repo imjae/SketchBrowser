@@ -7,6 +7,7 @@ export const INK_SCRIPT = String.raw`
   var settings = { tool: 'browse', color: '#315de8', width: 3, penOnly: false };
   var strokes = [], undo = [], redo = [], active = null, erasedBefore = null;
   var hydrated = false, revision = 0, frame = 0, limited = false;
+  var touchPoints = new Map(), touchNavigation = null, ignoreClicksUntil = 0;
   var documentId = newId(), lastRoute = route();
   var canvas = document.createElement('canvas');
   canvas.setAttribute('data-sketch-browser-ink', '');
@@ -155,7 +156,7 @@ export const INK_SCRIPT = String.raw`
     erasedBefore.last = p;
   }
   function pointerDown(event) {
-    if (!hydrated || settings.tool === 'browse' || active || erasedBefore || !event.isPrimary ||
+    if (!hydrated || settings.tool === 'browse' || touchNavigation || active || erasedBefore || !event.isPrimary ||
       (event.pointerType === 'mouse' && event.button !== 0) || (settings.penOnly && event.pointerType !== 'pen')) return;
     event.preventDefault(); event.stopPropagation();
     canvas.setPointerCapture(event.pointerId);
@@ -199,14 +200,93 @@ export const INK_SCRIPT = String.raw`
       else if (original.length !== strokes.length) commit(original);
     }
   }
+  function touchPosition(event) { return { x: event.clientX, y: event.clientY }; }
+  function belowCanvas(x, y) {
+    var previous = canvas.style.pointerEvents;
+    canvas.style.pointerEvents = 'none';
+    var element = document.elementFromPoint(x, y);
+    canvas.style.pointerEvents = previous;
+    return element;
+  }
+  function beginTouchNavigation() {
+    var ids = Array.from(touchPoints.keys()), a = touchPoints.get(ids[0]), b = touchPoints.get(ids[1]);
+    var center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    var previous = touchNavigation;
+    // A second finger cancels unfinished ink/erasing; it never saves a stray mark.
+    finish(null, true);
+    touchNavigation = { ids: ids, a: a, b: b, last: center, active: !!(previous && previous.active),
+      target: previous ? previous.target : belowCanvas(center.x, center.y) };
+  }
+  function panContent(target, dx, dy) {
+    var remainingX = -dx, remainingY = -dy, element = target;
+    while (element && element !== document.body && element !== document.documentElement) {
+      var style = getComputedStyle(element), x = element.scrollLeft, y = element.scrollTop;
+      var scrollXEnabled = /auto|scroll|overlay/.test(style.overflowX) && element.scrollWidth > element.clientWidth;
+      var scrollYEnabled = /auto|scroll|overlay/.test(style.overflowY) && element.scrollHeight > element.clientHeight;
+      if (scrollXEnabled || scrollYEnabled) {
+        element.scrollTo({ left: x + (scrollXEnabled ? remainingX : 0), top: y + (scrollYEnabled ? remainingY : 0), behavior: 'instant' });
+        remainingX -= element.scrollLeft - x; remainingY -= element.scrollTop - y;
+      }
+      element = element.parentElement;
+    }
+    if (remainingX || remainingY) window.scrollBy({ left: remainingX, top: remainingY, behavior: 'instant' });
+    requestDraw();
+  }
+  function trackTouchDown(event) {
+    if (event.pointerType !== 'touch' || !hydrated || (settings.tool === 'browse' && !touchNavigation)) return;
+    touchPoints.set(event.pointerId, touchPosition(event));
+    if (touchPoints.size === 2) beginTouchNavigation();
+    if (touchNavigation) { event.preventDefault(); event.stopPropagation(); }
+  }
+  function trackTouchMove(event) {
+    if (event.pointerType !== 'touch' || !touchPoints.has(event.pointerId)) return;
+    touchPoints.set(event.pointerId, touchPosition(event));
+    if (!touchNavigation) return;
+    event.preventDefault(); event.stopPropagation();
+    if (touchPoints.size !== 2) return;
+    var gesture = touchNavigation, a = touchPoints.get(gesture.ids[0]), b = touchPoints.get(gesture.ids[1]);
+    if (!a || !b) return;
+    var center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    if (!gesture.active) {
+      var ax = a.x - gesture.a.x, ay = a.y - gesture.a.y, bx = b.x - gesture.b.x, by = b.y - gesture.b.y;
+      var distanceA = Math.hypot(ax, ay), distanceB = Math.hypot(bx, by);
+      // Require both fingers to move together: taps, pinches and a resting palm
+      // should not change the selected drawing tool.
+      if (distanceA < 8 || distanceB < 8 || (ax * bx + ay * by) / (distanceA * distanceB) < 0.75) return;
+      gesture.active = true;
+      settings = { tool: 'browse', color: settings.color, width: settings.width, penOnly: settings.penOnly };
+      updateInput(); message('browse');
+    }
+    // touch-action is fixed when contact begins. Pan this already-active gesture
+    // ourselves, then let the browser handle subsequent gestures in browse mode.
+    panContent(gesture.target, center.x - gesture.last.x, center.y - gesture.last.y);
+    gesture.last = center; ignoreClicksUntil = Date.now() + 350;
+  }
+  function trackTouchEnd(event) {
+    if (event.pointerType !== 'touch') return;
+    touchPoints.delete(event.pointerId);
+    if (!touchNavigation) return;
+    event.stopPropagation();
+    if (touchNavigation.active) ignoreClicksUntil = Date.now() + 350;
+    if (!touchPoints.size) touchNavigation = null;
+    else if (touchPoints.size === 2) beginTouchNavigation();
+  }
+  function resetTouchNavigation() { touchPoints.clear(); touchNavigation = null; }
+  document.addEventListener('pointerdown', trackTouchDown, { capture: true, passive: false });
+  document.addEventListener('pointermove', trackTouchMove, { capture: true, passive: false });
+  document.addEventListener('pointerup', trackTouchEnd, true);
+  document.addEventListener('pointercancel', trackTouchEnd, true);
+  document.addEventListener('click', function (e) {
+    if (Date.now() < ignoreClicksUntil) { e.preventDefault(); e.stopImmediatePropagation(); }
+  }, true);
   canvas.addEventListener('pointerdown', pointerDown, { passive: false });
   canvas.addEventListener('pointermove', pointerMove, { passive: false });
   canvas.addEventListener('pointerup', function (e) { finish(e, false); });
   canvas.addEventListener('pointercancel', function (e) { finish(e, true); });
   canvas.addEventListener('lostpointercapture', function (e) { finish(e, true); });
   canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
-  document.addEventListener('visibilitychange', function () { if (document.hidden) finish(null, false); });
-  window.addEventListener('pagehide', function () { finish(null, false); });
+  document.addEventListener('visibilitychange', function () { if (document.hidden) { finish(null, false); resetTouchNavigation(); } });
+  window.addEventListener('pagehide', function () { finish(null, false); resetTouchNavigation(); });
   function updateInput() {
     canvas.style.pointerEvents = hydrated && settings.tool !== 'browse' ? 'auto' : 'none';
     canvas.style.cursor = settings.tool === 'eraser' ? 'cell' : 'crosshair';
@@ -235,7 +315,7 @@ export const INK_SCRIPT = String.raw`
   function onRoute() {
     var next = route();
     if (next === lastRoute) return;
-    lastRoute = next; active = null; erasedBefore = null;
+    lastRoute = next; active = null; erasedBefore = null; resetTouchNavigation();
     strokes = []; undo = []; redo = []; hydrated = false; revision = 0; documentId = newId();
     updateInput(); requestDraw(); message('ready');
   }

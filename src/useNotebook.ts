@@ -10,7 +10,7 @@ const notebook = new Notebook(AsyncStorage);
 type Session = { id: string; url: string; revision: number; loaded: boolean; page: PageNotes | null };
 export type SaveStatus = 'loading' | 'ready' | 'saving' | 'saved' | 'error';
 
-export function useNotebook(browser: RefObject<BrowserHandle | null>, settings: InkSettings) {
+export function useNotebook(browser: RefObject<BrowserHandle | null>, settings: InkSettings, onBrowseGesture: () => void) {
   const active = useRef<Session | null>(null);
   const drafts = useRef(new Map<string, PageNotes>());
   const latestSettings = useRef(settings); latestSettings.current = settings;
@@ -92,6 +92,7 @@ export function useNotebook(browser: RefObject<BrowserHandle | null>, settings: 
     }
     const session = active.current;
     if (!session || session.id !== message.documentId || session.url !== url || !session.loaded) return;
+    if (message.type === 'browse') { onBrowseGesture(); return; }
     if (message.type === 'limit') { setLimit(true); return; }
     setHistory({ canUndo: message.canUndo, canRedo: message.canRedo });
     if (message.type === 'change' && message.strokes && message.revision > session.revision) {
@@ -103,7 +104,7 @@ export function useNotebook(browser: RefObject<BrowserHandle | null>, settings: 
       setStrokeCount(page.strokes.length);
       void persist(session, page);
     }
-  }, [browser, persist]);
+  }, [browser, persist, onBrowseGesture]);
 
   const retrySave = () => {
     const session = active.current;

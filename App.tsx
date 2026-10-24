@@ -38,9 +38,49 @@ function SketchBrowser() {
   const [address, setAddress] = useState(HOME_URL);
   const [settings, setSettings] = useState<InkSettings>(DEFAULT_SETTINGS);
   const [libraryOpen, setLibraryOpen] = useState(width >= 1050);
+  const [toolbarCollapsed, setToolbarCollapsed] = useState(false);
+  const [contentFullscreen, setContentFullscreen] = useState(false);
+  const fullscreenRef = useRef(false); fullscreenRef.current = contentFullscreen;
+  const browserFullscreenActive = useRef(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [addressError, setAddressError] = useState<string | null>(null);
-  const notes = useNotebook(browser, settings);
+  const onBrowseGesture = useCallback(() => setSettings((previous) => ({ ...previous, tool: 'browse' })), []);
+  const notes = useNotebook(browser, settings, onBrowseGesture);
+
+  const exitFullscreen = useCallback(() => {
+    setContentFullscreen(false);
+    if (Platform.OS === 'web' && document.fullscreenElement === document.documentElement) {
+      void document.exitFullscreen().catch(() => undefined);
+    }
+  }, []);
+
+  const enterFullscreen = () => {
+    setContentFullscreen(true);
+    if (Platform.OS === 'web' && document.fullscreenEnabled) {
+      // Embedded browsers can reject the Fullscreen API; content-only mode still works.
+      void document.documentElement.requestFullscreen().catch(() => undefined);
+    }
+  };
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const onFullscreenChange = () => {
+      if (document.fullscreenElement === document.documentElement) browserFullscreenActive.current = true;
+      else if (browserFullscreenActive.current) {
+        browserFullscreenActive.current = false;
+        setContentFullscreen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && fullscreenRef.current) exitFullscreen();
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [exitFullscreen]);
 
   const navigate = useCallback((url: string) => {
     browser.current?.send({ type: 'flush' });
@@ -57,13 +97,14 @@ function SketchBrowser() {
 
   useEffect(() => {
     const event = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (contentFullscreen) { exitFullscreen(); return true; }
       if (libraryOpen && !wide) { setLibraryOpen(false); return true; }
       if (navigation.canGoBack) { browser.current?.back(); return true; }
       if (navigation.url !== HOME_URL) { navigate(HOME_URL); return true; }
       return false;
     });
     return () => event.remove();
-  }, [libraryOpen, wide, navigation, navigate]);
+  }, [contentFullscreen, exitFullscreen, libraryOpen, wide, navigation, navigate]);
 
   const submitAddress = () => {
     try { navigate(resolveAddress(address)); } catch (error) { setAddressError((error as Error).message); }
@@ -100,31 +141,19 @@ function SketchBrowser() {
       </Pressable>)}
     </ScrollView>
     <View style={s.tipCard}><View style={s.tipTitle}><Icon name="pen" size={16} color={GREEN} /><Text style={s.tipTitleText}>작은 사용 팁</Text></View>
-      <Text style={s.tipText}>읽고 이동할 땐 탐색,{`\n`}생각을 남길 땐 펜을 골라요.</Text>
+      <Text style={s.tipText}>두 손가락으로 드래그하면{`\n`}탐색 모드로 바뀌어요.</Text>
       <Pressable accessibilityRole="button" onPress={() => navigate(PRACTICE_URL)} style={s.tipLink}><Text style={s.tipLinkText}>연습하러 가기</Text><Icon name="arrow" size={15} color={GREEN} /></Pressable>
     </View>
     <View style={s.localStorage}><Icon name="lock" size={12} color="#929b8b" /><Text style={s.localStorageText}>필기는 이 기기에 보관돼요</Text></View>
   </View>;
 
-  return <SafeAreaView style={s.root} edges={['top', 'right', 'bottom', 'left']}>
-    <StatusBar style="dark" />
-    <View style={[s.header, compact && { paddingHorizontal: 14 }]}>
-      <View style={s.brand}><View style={s.brandMark}><Icon name="pen" size={25} color="#f8faf5" /></View>
-        <View><Text style={s.brandName}>SketchBrowser<Text style={s.brandDot}>.</Text></Text>
-          {!compact && <Text style={s.brandTagline}>웹 위에 남기는 나만의 생각</Text>}</View>
-      </View>
-      <View style={s.headerActions}>
-        {!compact && <View style={s.deviceBadge}><View style={s.greenDot} /><Text style={s.deviceText}>{Platform.OS === 'web' ? 'WEB PREVIEW' : 'ANDROID · TABLET'}</Text></View>}
-        <Pressable accessibilityRole="button" accessibilityLabel="서재 열기 또는 닫기" onPress={() => setLibraryOpen(!libraryOpen)} style={[s.libraryButton, libraryOpen && s.libraryButtonActive]}>
-          <Icon name="library" size={17} color={GREEN} /><Text style={s.libraryButtonText}>서재</Text>
-        </Pressable>
-      </View>
-    </View>
+  return <SafeAreaView style={s.root} edges={contentFullscreen ? [] : ['top', 'right', 'bottom', 'left']}>
+    <StatusBar style="dark" hidden={contentFullscreen} />
     <View style={s.workspace}>
-      {libraryOpen && wide && library}
-      <View style={[s.main, compact && { padding: 8 }]}>
-        <View style={s.browserCard}>
-          <View style={[s.addressBar, compact && { paddingHorizontal: 6, gap: 2 }]}>
+      {libraryOpen && wide && !contentFullscreen && library}
+      <View style={[s.main, compact && { padding: 8 }, contentFullscreen && s.fullscreenMain]}>
+        <View style={[s.browserCard, contentFullscreen && s.fullscreenCard]}>
+          {!contentFullscreen && <View style={[s.addressBar, compact && { paddingHorizontal: 6, gap: 2 }]}>
             <IconButton name="back" label="뒤로 가기" onPress={() => browser.current?.back()} disabled={!navigation.canGoBack} />
             {!compact && <IconButton name="forward" label="앞으로 가기" onPress={() => browser.current?.forward()} disabled={!navigation.canGoForward} />}
             <IconButton name="reload" label="새로고침" onPress={() => browser.current?.reload()} />
@@ -137,8 +166,20 @@ function SketchBrowser() {
               <Pressable accessibilityRole="button" accessibilityLabel="주소 열기" onPress={submitAddress} style={s.goButton}><Icon name="arrow" size={17} color={GREEN} /></Pressable>
             </View>
             <IconButton name="home" label="홈으로" onPress={() => navigate(HOME_URL)} />
-          </View>
-          <View style={s.toolbar}>
+            <Pressable accessibilityRole="button" accessibilityLabel="서재 열기 또는 닫기" aria-expanded={libraryOpen} accessibilityState={{ expanded: libraryOpen }}
+              onPress={() => setLibraryOpen(!libraryOpen)} style={[s.libraryButton, compact && s.compactControl, libraryOpen && s.libraryButtonActive]}>
+              <Icon name="library" size={17} color={GREEN} />{!compact && <Text style={s.libraryButtonText}>서재</Text>}
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={toolbarCollapsed ? '펜 도구 펼치기' : '펜 도구 접기'}
+              aria-expanded={!toolbarCollapsed} accessibilityState={{ expanded: !toolbarCollapsed }} onPress={() => setToolbarCollapsed((previous) => !previous)}
+              style={[s.foldButton, compact && s.compactControl, !toolbarCollapsed && s.libraryButtonActive]}>
+              <Icon name={toolbarCollapsed ? currentTool.icon : 'pen'} size={17} color={GREEN} />
+              {!compact && <Text style={s.libraryButtonText}>도구</Text>}
+              <Icon name={toolbarCollapsed ? 'chevronDown' : 'chevronUp'} size={13} color={GREEN} />
+            </Pressable>
+            <IconButton name="maximize" label="브라우저 전체화면" onPress={enterFullscreen} />
+          </View>}
+          {!contentFullscreen && !toolbarCollapsed && <View style={s.toolbar}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.toolbarContent}>
               <View style={s.toolGroup}>{TOOLS.map(({ tool, label, icon }) => <Pressable key={tool} accessibilityRole="button" accessibilityLabel={label}
                 accessibilityState={{ selected: settings.tool === tool }} onPress={() => chooseTool(tool)}
@@ -161,33 +202,34 @@ function SketchBrowser() {
                 <Icon name="pen" size={15} color={settings.penOnly ? GREEN : '#91998a'} /><Text style={[s.penOnlyText, settings.penOnly && { color: GREEN }]}>펜만</Text><View style={[s.switchTrack, settings.penOnly && { backgroundColor: GREEN }]}><View style={[s.switchThumb, settings.penOnly && { alignSelf: 'flex-end' }]} /></View>
               </Pressable>
             </ScrollView>
-          </View>
-          {error && <View style={s.errorBar}><Text style={s.errorText}>{error}</Text>
+          </View>}
+          {!contentFullscreen && error && <View style={s.errorBar}><Text style={s.errorText}>{error}</Text>
             <Pressable accessibilityRole="button" onPress={() => { if (notes.error) notes.retrySave(); else if (addressError) setAddressError(null); else browser.current?.reload(); }} style={s.retryButton}><Text style={s.retryText}>{addressError ? '닫기' : '다시 시도'}</Text></Pressable></View>}
-          {notes.limit && <View style={s.errorBar}><Text style={s.errorText}>이 페이지의 필기 용량에 도달했어요. 다른 페이지에 이어 쓰거나, 필요 없는 획을 지워 주세요.</Text></View>}
-          {Platform.OS === 'web' && <View style={s.previewBar}><Text style={s.previewText}>웹 미리보기 · 연습 페이지의 필기를 체험할 수 있어요. 외부 웹사이트는 Android 앱에서 열어 주세요.</Text></View>}
+          {!contentFullscreen && notes.limit && <View style={s.errorBar}><Text style={s.errorText}>이 페이지의 필기 용량에 도달했어요. 다른 페이지에 이어 쓰거나, 필요 없는 획을 지워 주세요.</Text></View>}
+          {!contentFullscreen && Platform.OS === 'web' && <View style={s.previewBar}><Text style={s.previewText}>웹 미리보기 · 연습 페이지의 필기를 체험할 수 있어요. 외부 웹사이트는 Android 앱에서 열어 주세요.</Text></View>}
           <View style={s.page}><BrowserSurface ref={browser} {...source} onMessage={notes.onMessage} onNavigation={onNavigation} onDocumentLoading={notes.onDocumentLoading} onError={setPageError} /></View>
-          <View style={s.statusBar}>
+          {!contentFullscreen && <View style={s.statusBar}>
             <View style={s.saveStatus}>{!webUnavailable && (notes.status === 'saving' || notes.status === 'loading') ? <ActivityIndicator size={12} color={GREEN} /> : <Icon name={notes.status === 'saved' ? 'check' : 'save'} size={13} color={notes.status === 'error' ? '#c47943' : GREEN} />}
               <Text accessibilityLiveRegion="polite" style={s.statusText}>{webUnavailable ? 'Android 앱에서 열어 주세요' : saveLabels[notes.status]}</Text></View>
-            {!compact && <Text style={s.modeHint}>{settings.tool === 'browse' ? '탐색 모드 · 스크롤하고 링크를 열 수 있어요' : settings.penOnly ? `${currentTool.label} 모드 · 스타일러스만 입력해요` : `${currentTool.label} 모드 · 이동하려면 탐색을 선택하세요`}</Text>}
+            {!compact && <Text style={s.modeHint}>{settings.tool === 'browse' ? '탐색 모드 · 스크롤하고 링크를 열 수 있어요' : `${currentTool.label} 모드${settings.penOnly ? ' · 펜만 입력' : ''} · 두 손가락 드래그로 탐색`}</Text>}
             <Text style={s.strokeCount}>{notes.strokeCount}개의 획</Text>
-          </View>
+          </View>}
         </View>
-        {!compact && <View style={s.workspaceFooter}><Text style={s.footerText}>A LITTLE SPACE FOR YOUR THOUGHTS.</Text><Text style={s.footerVersion}>SketchBrowser 0.1</Text></View>}
+        {!contentFullscreen && !compact && <View style={s.workspaceFooter}><Text style={s.footerText}>A LITTLE SPACE FOR YOUR THOUGHTS.</Text><Text style={s.footerVersion}>SketchBrowser 0.1</Text></View>}
       </View>
-      {libraryOpen && !wide && <><Pressable accessibilityRole="button" accessibilityLabel="서재 바깥 영역 닫기" onPress={() => setLibraryOpen(false)} style={s.backdrop} />{library}</>}
+      {libraryOpen && !wide && !contentFullscreen && <><Pressable accessibilityRole="button" accessibilityLabel="서재 바깥 영역 닫기" onPress={() => setLibraryOpen(false)} style={s.backdrop} />{library}</>}
+      {contentFullscreen && <Pressable accessibilityRole="button" accessibilityLabel="전체화면 종료" onPress={exitFullscreen}
+        style={({ pressed }) => [s.fullscreenExit, pressed && s.pressed]}>
+        <Icon name="minimize" size={19} color={GREEN} /><Text style={s.libraryButtonText}>전체화면 종료</Text>
+      </Pressable>}
     </View>
   </SafeAreaView>;
 }
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#edf0e8' },
-  header: { height: 87, backgroundColor: '#fafbf7', borderBottomWidth: 1, borderColor: '#dde3d6', paddingHorizontal: 26, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 12 }, brandMark: { width: 42, height: 45, borderRadius: 13, borderBottomRightRadius: 5, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' },
-  brandName: { fontSize: 22, fontWeight: '700', letterSpacing: -0.9, color: '#333e32' }, brandDot: { color: '#78956c' }, brandTagline: { color: '#929b88', fontSize: 10, letterSpacing: 0.4, marginTop: 4 },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 24 }, deviceBadge: { flexDirection: 'row', alignItems: 'center', gap: 7 }, greenDot: { width: 5, height: 5, borderRadius: 5, backgroundColor: '#8ca17b' }, deviceText: { fontSize: 9, fontWeight: '600', letterSpacing: 1.4, color: '#8e9885' },
-  libraryButton: { height: 38, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: '#dce4d4', alignItems: 'center', flexDirection: 'row', gap: 7 }, libraryButtonActive: { backgroundColor: '#eaf0e4' }, libraryButtonText: { fontSize: 12, color: GREEN, fontWeight: '600' },
+  libraryButton: { height: 40, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: '#dce4d4', alignItems: 'center', flexDirection: 'row', gap: 7 }, libraryButtonActive: { backgroundColor: '#eaf0e4' }, libraryButtonText: { fontSize: 12, color: GREEN, fontWeight: '600' },
+  foldButton: { height: 40, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#dce4d4', alignItems: 'center', flexDirection: 'row', gap: 5 }, compactControl: { paddingHorizontal: 8, gap: 3 },
   workspace: { flex: 1, flexDirection: 'row' },
   sidebar: { width: 232, backgroundColor: '#f7f8f3', borderRightWidth: 1, borderColor: '#dfe5d7', paddingHorizontal: 18, paddingTop: 27, paddingBottom: 20 },
   floatingSidebar: { position: 'absolute', left: 0, top: 0, bottom: 0, zIndex: 30, width: 280, elevation: 8, shadowColor: '#283525', shadowOpacity: 0.15, shadowRadius: 20 }, backdrop: { position: 'absolute', inset: 0, backgroundColor: '#26312560', zIndex: 25 },
@@ -198,6 +240,8 @@ const s = StyleSheet.create({
   savedPage: { padding: 12, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: 'transparent' }, savedPageActive: { backgroundColor: '#eff3e9', borderColor: '#dce6d2' }, savedPageTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 }, savedPageTitle: { fontSize: 12, color: '#53634b', lineHeight: 19, fontWeight: '500', flex: 1 }, savedPageUrl: { marginTop: 7, fontSize: 10, color: '#96a08c' }, savedPageMeta: { marginTop: 8, fontSize: 9, color: '#a1aa97' },
   tipCard: { backgroundColor: '#ecf1e5', borderWidth: 1, borderColor: '#e1e8d8', padding: 16, borderRadius: 10, marginTop: 18 }, tipTitle: { flexDirection: 'row', gap: 7, alignItems: 'center' }, tipTitleText: { fontSize: 11, color: '#637756', fontWeight: '600' }, tipText: { fontSize: 11, lineHeight: 21, color: '#91a084', marginVertical: 12 }, tipLink: { flexDirection: 'row', gap: 8, alignItems: 'center', minHeight: 30 }, tipLinkText: { fontSize: 10, color: GREEN }, localStorage: { flexDirection: 'row', gap: 5, alignItems: 'center', justifyContent: 'center', marginTop: 23 }, localStorageText: { fontSize: 9, color: '#9da692' },
   main: { flex: 1, minWidth: 0, paddingHorizontal: 23, paddingTop: 23, paddingBottom: 13 }, browserCard: { flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#dbe2d2', borderRadius: 12, overflow: 'hidden', elevation: 1, shadowColor: '#3d5032', shadowOpacity: 0.04, shadowRadius: 10 },
+  fullscreenMain: { padding: 0, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 }, fullscreenCard: { borderWidth: 0, borderRadius: 0, elevation: 0, shadowOpacity: 0 },
+  fullscreenExit: { position: 'absolute', top: 12, right: 12, minHeight: 42, paddingHorizontal: 12, backgroundColor: '#fafcf5ed', borderWidth: 1, borderColor: '#dce4d4', borderRadius: 9, flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 40, elevation: 4 },
   addressBar: { height: 63, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, borderBottomWidth: 1, borderColor: '#e8ece2', backgroundColor: '#fff' },
   iconButton: { width: 38, height: 40, borderRadius: 7, alignItems: 'center', justifyContent: 'center' }, iconButtonActive: { backgroundColor: '#e6eedf' }, disabled: { opacity: 0.3 }, pressed: { opacity: 0.6 },
   addressField: { flex: 1, minWidth: 0, height: 36, borderRadius: 7, paddingLeft: 12, gap: 9, flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f5ee', borderWidth: 1, borderColor: '#e8ece1', marginHorizontal: 6 }, addressInput: { flex: 1, minWidth: 0, fontSize: 12, color: '#67745c', height: 34, padding: 0 }, goButton: { width: 35, height: 34, alignItems: 'center', justifyContent: 'center' },

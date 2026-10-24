@@ -2,7 +2,7 @@
   "name": "sketch-browser",
   "description": "A tablet browser with persistent, page-specific ink annotations.",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "index.ts",
   "dependencies": {
     "@expo/metro-runtime": "~57.0.17",
@@ -31,7 +31,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
-    "test:e2e": "node --import tsx tests/browser.e2e.mjs",
+    "test:e2e": "node --import tsx tests/browser.e2e.mjs && node --import tsx tests/interaction.e2e.mjs",
     "export:android": "expo export --platform android",
     "export:web": "expo export --platform web",
     "prebuild:android": "expo prebuild --platform android --no-install"

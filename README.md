@@ -26,7 +26,10 @@ pnpm web
 - 주소·검색어 입력, 링크 탐색, 뒤로/앞으로 가기, 새로고침.
 - **탐색 / 펜 / 밑줄 / 형광펜 / 지우개** 도구. 지우개는 닿은 획 전체를 지웁니다.
 - 5가지 색, 3가지 굵기, 펜 압력 반영, 실행 취소·다시 실행.
-- **펜만** 옵션: 손가락·마우스 입력을 필기에서 제외합니다. 스크롤과 확대·축소는 **탐색** 도구에서 합니다.
+- **펜만** 옵션: 손가락·마우스 입력을 필기에서 제외합니다.
+- 필기 도구를 사용하다가 **두 손가락을 같은 방향으로 드래그**하면 탐색 모드로 전환하고 바로 스크롤합니다. 진행 중인 획·지우기는 취소하며 기존 필기를 유지합니다. 단순한 두 손가락 터치나 핀치는 전환하지 않습니다.
+- 주소창의 **도구 접기·펼치기**로 펜 도구 모음을 숨기고 다시 표시합니다.
+- 주소창의 **전체화면** 버튼으로 웹 내용만 표시합니다. 화면의 종료 버튼, PC의 `Esc`, Android의 뒤로 가기로 복귀합니다. 페이지·필기·실행 취소 기록은 유지됩니다.
 - 획을 마칠 때마다 AsyncStorage에 자동 저장. 저장 성공·실패 상태와 다시 시도를 표시합니다.
 - 서재에서 필기한 페이지를 다시 열기. 앱을 다시 실행해도 해당 URL의 필기가 복원됩니다.
 - 스크롤·확대와 문단의 위치 변경을 반영하는 필기 레이어. 가로·세로 태블릿 화면과 접이식 서재를 지원합니다.
@@ -55,13 +58,13 @@ pnpm export:android
 
 E2E는 기본적으로 설치된 Google Chrome을 사용합니다. Playwright Chromium을 사용하려면 먼저 `pnpm exec playwright install chromium`을 실행하고 PowerShell에서 `$env:PLAYWRIGHT_CHANNEL = 'chromium'`을 설정하세요. `SKETCH_TEST_URL`로 서버 주소를 지정할 수 있습니다.
 
-단위 테스트는 주소 정규화, 브리지 데이터 검증, URL별 저장, 빠른 연속 저장, 저장 실패 후 재시도, 손상된 레코드 격리를 검증합니다. 브라우저 E2E는 필기·밑줄·형광펜·지우개·실행 취소·재실행·새로고침·페이지별 복원·펜만 입력·가로/세로 화면을 검증합니다. 화면 캡처는 `test-results/`에 생성됩니다.
+단위 테스트는 주소 정규화, 브리지 데이터 검증, URL별 저장, 빠른 연속 저장, 저장 실패 후 재시도, 손상된 레코드 격리를 검증합니다. 브라우저 E2E는 필기·저장·복원, 도구 접기, 전체화면 전환과 복귀, 두 손가락 탐색 전환, 전환 중 획·지우기 취소, 펜만 모드와 내부 스크롤 영역을 검증합니다. 화면 캡처는 `test-results/`에 생성됩니다.
 
 `export:android`는 Android용 JavaScript/Hermes 번들 검증이며 **설치 가능한 APK 빌드는 아닙니다**. 이 환경에는 Android SDK·실물 태블릿이 없어 네이티브 WebView, S Pen 지연·압력, 손바닥 차단 동작은 실제 기기에서 추가 검증해야 합니다.
 
 ## 태블릿에 APK 설치하기
 
-[GitHub Actions의 Android test APK](https://github.com/imjae/SketchBrowser/actions/workflows/android-apk.yml)에서 최신 성공 실행을 열고, **Artifacts → SketchBrowser-android-test**를 다운로드하세요. ZIP 안의 `SketchBrowser-0.1.0-test.apk`를 태블릿으로 옮겨 실행하면 설치됩니다. 설치 화면에서 요청하는 경우 해당 파일 앱 또는 브라우저의 **이 출처 허용**을 켜 주세요.
+[GitHub Actions의 Android test APK](https://github.com/imjae/SketchBrowser/actions/workflows/android-apk.yml)에서 최신 성공 실행을 열고, **Artifacts → SketchBrowser-android-test**를 다운로드하세요. ZIP 안의 `SketchBrowser-0.1.1-test.apk`를 태블릿으로 옮겨 실행하면 설치됩니다. 설치 화면에서 요청하는 경우 해당 파일 앱 또는 브라우저의 **이 출처 허용**을 켜 주세요.
 
 이 APK는 앱 코드를 포함하므로 **Expo Go나 PC 개발 서버 없이 실행**됩니다. ARM64·ARMv7 Android 태블릿을 지원하며, 필기는 설치한 앱의 기기에 저장됩니다. 외부 웹페이지를 열 때에는 인터넷이 필요합니다. 서명은 Expo 템플릿의 테스트 키를 사용합니다.
 
