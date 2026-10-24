@@ -44,8 +44,8 @@ function SketchBrowser() {
   const browserFullscreenActive = useRef(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [addressError, setAddressError] = useState<string | null>(null);
-  const onBrowseGesture = useCallback(() => setSettings((previous) => ({ ...previous, tool: 'browse' })), []);
-  const notes = useNotebook(browser, settings, onBrowseGesture);
+  const onInputTool = useCallback((tool: 'browse' | 'pen') => setSettings((previous) => ({ ...previous, tool })), []);
+  const notes = useNotebook(browser, settings, onInputTool);
 
   const exitFullscreen = useCallback(() => {
     setContentFullscreen(false);

@@ -2,16 +2,17 @@
   "expo": {
     "name": "SketchBrowser",
     "slug": "sketch-browser",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "plugins": ["./plugins/withStylusInput"],
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "package": "com.sketchbrowser.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#48694f",
         "foregroundImage": "./assets/android-icon-foreground.png",

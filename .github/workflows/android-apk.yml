@@ -8,6 +8,7 @@ on:
       - '.github/workflows/android-apk.yml'
       - 'App.tsx'
       - 'src/**'
+      - 'plugins/**'
       - 'assets/**'
       - 'scripts/collect-apk.mjs'
       - 'app.json'

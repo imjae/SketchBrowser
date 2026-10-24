@@ -68,7 +68,7 @@ try {
   await mode('지우개');
   await pen('mouseMoved', 210, 390, 'none', 2, 0.8);
   await pen('mouseReleased', 210, 390, 'right', 0, 0);
-  await count(1); await mode('탐색');
+  await count(1); await mode('펜');
   await tool('실행 취소').click(); await count(2);
 
   // Release the barrel while the tip is still down: resume the original pen

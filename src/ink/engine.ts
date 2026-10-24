@@ -9,6 +9,7 @@ export const INK_SCRIPT = String.raw`
   var hydrated = false, revision = 0, frame = 0, limited = false;
   var touchPoints = new Map(), touchNavigation = null, ignoreClicksUntil = 0;
   var penButtonDown = false, ignorePenContextUntil = 0;
+  var domPenContact = false, nativePenContact = false, nativeOwned = false, nativeStream = null;
   var documentId = newId(), lastRoute = route();
   var canvas = document.createElement('canvas');
   canvas.setAttribute('data-sketch-browser-ink', '');
@@ -162,7 +163,7 @@ export const INK_SCRIPT = String.raw`
     if (!hydrated || tool === 'browse' || touchNavigation || active || erasedBefore || !event.isPrimary ||
       (event.pointerType === 'mouse' && event.button !== 0) || (settings.penOnly && event.pointerType !== 'pen')) return;
     event.preventDefault(); event.stopPropagation();
-    canvas.setPointerCapture(event.pointerId);
+    if (!event.nativeStylus) canvas.setPointerCapture(event.pointerId);
     limited = false;
     if (tool === 'eraser') { erasedBefore = { strokes: strokes, pointerId: event.pointerId, last: point(event) }; eraseAt(point(event)); return; }
     var count = pointCount();
@@ -209,20 +210,27 @@ export const INK_SCRIPT = String.raw`
     finish(null, !!cancelled);
     penButtonDown = pressed; updateInput(); message('penButton');
   }
+  function enterPen() {
+    if (settings.tool !== 'browse') return;
+    settings = { tool: 'pen', color: settings.color, width: settings.width, penOnly: settings.penOnly };
+    updateInput(); message('pen');
+  }
   function trackPenButton(event) {
-    if (event.pointerType !== 'pen' || !hydrated) return;
+    if (event.pointerType !== 'pen' || !hydrated || nativeOwned) return;
     var cancelled = event.type === 'pointercancel' || event.type === 'lostpointercapture';
     var ended = cancelled || event.type === 'pointerup';
-    var wasDown = penButtonDown;
+    var wasDown = penButtonDown, wasContact = domPenContact;
     // Pointer Events: barrel = 2, eraser tip = 32. Check every move too:
     // pressing/releasing a barrel button during tip contact is a chorded move.
     var pressed = !ended && !!(event.buttons & (2 | 32));
     var contact = !ended && (!!(event.buttons & (1 | 32)) || event.pressure > 0);
+    if (contact && !wasContact) enterPen();
+    domPenContact = contact;
+    if (ended) finish(event, cancelled);
     setPenButton(pressed, cancelled);
-    if (!pressed && !wasDown) return;
+    if (!contact && !wasContact && !pressed && !wasDown) return;
     event.preventDefault(); event.stopPropagation();
     ignorePenContextUntil = Date.now() + 350;
-    if (pressed && event.type === 'pointerdown') canvas.setPointerCapture(event.pointerId);
     if (!contact) finish(null, cancelled);
     else if (!active && !erasedBefore) pointerDown(event);
     else pointerMove(event);
@@ -298,6 +306,57 @@ export const INK_SCRIPT = String.raw`
     else if (touchPoints.size === 2) beginTouchNavigation();
   }
   function resetTouchNavigation() { touchPoints.clear(); touchNavigation = null; }
+  function resetNativeInput(cancelled) {
+    finish(null, !!cancelled); setPenButton(false, cancelled); resetTouchNavigation();
+    nativeOwned = false; nativeStream = null; nativePenContact = false; domPenContact = false;
+  }
+  // Android forwards raw MotionEvents before Chromium can consume the S Pen
+  // barrel stream for text selection. Native pixels map to visual CSS pixels,
+  // including page zoom; the normal canvas/undo/save path remains shared.
+  function nativeInput(packet) {
+    if (!packet || !hydrated) return;
+    if (packet.reset) { resetNativeInput(true); return; }
+    if (packet.start) {
+      resetNativeInput(true); nativeStream = packet.stream; nativeOwned = true;
+    } else if (nativeOwned && packet.stream !== nativeStream) return;
+    if (!(packet.width > 0 && packet.height > 0) || !Array.isArray(packet.events)) return;
+    var viewport = window.visualViewport;
+    var scaleX = (viewport ? viewport.width : innerWidth) / packet.width;
+    var scaleY = (viewport ? viewport.height : innerHeight) / packet.height;
+    packet.events.forEach(function (sample) {
+      if (!sample || !Number.isFinite(sample.x) || !Number.isFinite(sample.y)) return;
+      var pen = sample.kind === 'pen', type = sample.type;
+      var event = { pointerType: pen ? 'pen' : 'touch', pointerId: (pen ? -1000 : -2000) - sample.id,
+        clientX: sample.x * scaleX + (viewport ? viewport.offsetLeft : 0),
+        clientY: sample.y * scaleY + (viewport ? viewport.offsetTop : 0),
+        pressure: Math.max(0, Math.min(1, sample.pressure || 0)), isPrimary: true, nativeStylus: true,
+        preventDefault: function () {}, stopPropagation: function () { this.stopped = true; } };
+      if (pen) {
+        if (type === 'down') { nativePenContact = true; enterPen(); }
+        if (type === 'up' || type === 'cancel') {
+          finish(event, type === 'cancel'); nativePenContact = false;
+        }
+        setPenButton(type !== 'cancel' && type !== 'leave' && !!sample.pressed, type === 'cancel');
+        ignorePenContextUntil = Date.now() + 350;
+        if (type === 'leave') { if (nativePenContact) finish(null, true); nativePenContact = false; }
+        if (nativeOwned && nativePenContact && !touchNavigation) {
+          if (!active && !erasedBefore) pointerDown(event); else pointerMove(event);
+        }
+      } else if (nativeOwned) {
+        if (type === 'down') {
+          event.isPrimary = touchPoints.size === 0;
+          trackTouchDown(event); if (!event.stopped) pointerDown(event);
+        } else if (type === 'move') {
+          trackTouchMove(event); if (!event.stopped) pointerMove(event);
+        } else if (type === 'up' || type === 'cancel') {
+          trackTouchEnd(event); finish(event, type === 'cancel');
+        }
+      }
+    });
+    if (packet.end) {
+      finish(null, false); nativeOwned = false; nativePenContact = false; resetTouchNavigation();
+    }
+  }
   document.addEventListener('pointerdown', trackTouchDown, { capture: true, passive: false });
   document.addEventListener('pointermove', trackTouchMove, { capture: true, passive: false });
   document.addEventListener('pointerup', trackTouchEnd, true);
@@ -319,9 +378,9 @@ export const INK_SCRIPT = String.raw`
   canvas.addEventListener('pointercancel', function (e) { finish(e, true); });
   canvas.addEventListener('lostpointercapture', function (e) { finish(e, true); });
   canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
-  document.addEventListener('visibilitychange', function () { if (document.hidden) { finish(null, false); setPenButton(false, false); resetTouchNavigation(); } });
-  window.addEventListener('pagehide', function () { finish(null, false); setPenButton(false, false); resetTouchNavigation(); });
-  window.addEventListener('blur', function () { if (penButtonDown) setPenButton(false, false); });
+  document.addEventListener('visibilitychange', function () { if (document.hidden) resetNativeInput(false); });
+  window.addEventListener('pagehide', function () { resetNativeInput(false); });
+  window.addEventListener('blur', function () { resetNativeInput(false); });
   function updateInput() {
     canvas.style.pointerEvents = hydrated && (settings.tool !== 'browse' || penButtonDown) ? 'auto' : 'none';
     canvas.style.cursor = settings.tool === 'eraser' || penButtonDown ? 'cell' : 'crosshair';
@@ -334,7 +393,10 @@ export const INK_SCRIPT = String.raw`
         strokes = command.strokes; hydrated = true; undo = []; redo = [];
         updateInput(); requestDraw(); message('state'); break;
       case 'settings':
-        finish(null, false); settings = command.settings; updateInput(); break;
+        // Acknowledge an automatic tool change without splitting its first stroke.
+        var next = command.settings;
+        if (next.tool !== settings.tool || next.color !== settings.color || next.width !== settings.width || next.penOnly !== settings.penOnly) finish(null, false);
+        settings = next; updateInput(); break;
       case 'undo':
         if (!hydrated) return;
         finish(null, false);
@@ -346,11 +408,11 @@ export const INK_SCRIPT = String.raw`
       case 'flush': finish(null, false); setPenButton(false, false); break;
     }
   }
-  window.__sketchBrowserInk = { receive: receive };
+  window.__sketchBrowserInk = { receive: receive, nativeInput: nativeInput };
   function onRoute() {
     var next = route();
     if (next === lastRoute) return;
-    lastRoute = next; active = null; erasedBefore = null; setPenButton(false, true); resetTouchNavigation();
+    lastRoute = next; active = null; erasedBefore = null; resetNativeInput(true);
     strokes = []; undo = []; redo = []; hydrated = false; revision = 0; documentId = newId();
     updateInput(); requestDraw(); message('ready');
   }
