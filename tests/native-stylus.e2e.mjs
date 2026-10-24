@@ -62,6 +62,7 @@ try {
 
   // Hover button changes the visible tool without deleting saved ink.
   await native([pen('state', 150, 300, true)]); await mode('지우개'); await count(2);
+  await domPen('mouseMoved', 150, 0, 0); await mode('지우개');
   await native([pen('state', 150, 300)]); await mode('펜'); await count(2);
   await stroke(300, true); await count(1); await mode('지우개');
   await native([pen('state', 220, 300)]); await mode('펜');

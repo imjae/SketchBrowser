@@ -9,7 +9,7 @@ export const INK_SCRIPT = String.raw`
   var hydrated = false, revision = 0, frame = 0, limited = false;
   var touchPoints = new Map(), touchNavigation = null, ignoreClicksUntil = 0;
   var penButtonDown = false, ignorePenContextUntil = 0;
-  var domPenContact = false, nativePenContact = false, nativeOwned = false, nativeStream = null;
+  var domPenContact = false, nativePenContact = false, nativeOwned = false, nativeSource = false, nativeStream = null;
   var documentId = newId(), lastRoute = route();
   var canvas = document.createElement('canvas');
   canvas.setAttribute('data-sketch-browser-ink', '');
@@ -216,7 +216,7 @@ export const INK_SCRIPT = String.raw`
     updateInput(); message('pen');
   }
   function trackPenButton(event) {
-    if (event.pointerType !== 'pen' || !hydrated || nativeOwned) return;
+    if (event.pointerType !== 'pen' || !hydrated || nativeSource) return;
     var cancelled = event.type === 'pointercancel' || event.type === 'lostpointercapture';
     var ended = cancelled || event.type === 'pointerup';
     var wasDown = penButtonDown, wasContact = domPenContact;
@@ -308,7 +308,7 @@ export const INK_SCRIPT = String.raw`
   function resetTouchNavigation() { touchPoints.clear(); touchNavigation = null; }
   function resetNativeInput(cancelled) {
     finish(null, !!cancelled); setPenButton(false, cancelled); resetTouchNavigation();
-    nativeOwned = false; nativeStream = null; nativePenContact = false; domPenContact = false;
+    nativeOwned = false; nativeSource = false; nativeStream = null; nativePenContact = false; domPenContact = false;
   }
   // Android forwards raw MotionEvents before Chromium can consume the S Pen
   // barrel stream for text selection. Native pixels map to visual CSS pixels,
@@ -320,6 +320,9 @@ export const INK_SCRIPT = String.raw`
       resetNativeInput(true); nativeStream = packet.stream; nativeOwned = true;
     } else if (nativeOwned && packet.stream !== nativeStream) return;
     if (!(packet.width > 0 && packet.height > 0) || !Array.isArray(packet.events)) return;
+    // Once the Android route is present, incomplete DOM hover/button reports
+    // must not overwrite its authoritative hardware state.
+    nativeSource = true;
     var viewport = window.visualViewport;
     var scaleX = (viewport ? viewport.width : innerWidth) / packet.width;
     var scaleY = (viewport ? viewport.height : innerHeight) / packet.height;
