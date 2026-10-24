@@ -8,6 +8,8 @@ import { DEFAULT_SETTINGS, InkSettings, Tool } from './src/model';
 import { HOME_URL, PRACTICE_URL, isDemoUrl, resolveAddress, shortAddress } from './src/urls';
 import { useNotebook } from './src/useNotebook';
 import { Icon, IconName } from './src/ui/Icon';
+import { randomUUID } from 'expo-crypto';
+import { ReviewPanel, saveTransfer } from './src/review/ReviewPanel';
 
 const GREEN = '#48694f';
 const COLORS = ['#315de8', '#343b37', '#d65c53', '#5f8965', '#e6bc42'];
@@ -46,6 +48,18 @@ function SketchBrowser() {
   const [addressError, setAddressError] = useState<string | null>(null);
   const onInputTool = useCallback((tool: 'browse' | 'pen') => setSettings((previous) => ({ ...previous, tool })), []);
   const notes = useNotebook(browser, settings, onInputTool);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [capturing, setCapturing] = useState(false);
+  const captureReview = async () => {
+    if (capturing || !browser.current) return;
+    setCapturing(true); setPageError(null);
+    try {
+      const captured = await browser.current.captureReview();
+      await saveTransfer({ version:1, id:randomUUID(), capturedAt:new Date().toISOString(), ...captured, instruction:'' });
+      setReviewOpen(true);
+    } catch (e) { setPageError((e as Error).message); }
+    finally { setCapturing(false); }
+  };
 
   const exitFullscreen = useCallback(() => {
     setContentFullscreen(false);
@@ -180,6 +194,13 @@ function SketchBrowser() {
             </Pressable>
             <IconButton name="maximize" label="브라우저 전체화면" onPress={enterFullscreen} />
           </View>}
+          {!contentFullscreen && Platform.OS !== 'web' && <View style={{flexDirection:'row',gap:16,paddingHorizontal:16,paddingVertical:8,alignItems:'center',flexWrap:'wrap'}}>
+            <Pressable accessibilityRole="button" onPress={() => setReviewOpen(true)}><Text style={s.libraryButtonText}>수정 요청 목록</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="현재 화면의 필기로 수정 요청" onPress={captureReview}
+              disabled={capturing || navigation.loading || notes.status === 'loading' || !/^https:\/\/imjae\.github\.io\/writing\/[^/]+\/?(?:[?#].*)?$/.test(navigation.url)}>
+              <Text style={[s.libraryButtonText, {opacity:capturing?0.5:1}]}>{capturing ? '화면 준비 중…' : '현재 화면의 필기로 수정 요청'}</Text>
+            </Pressable>
+          </View>}
           {!contentFullscreen && !toolbarCollapsed && <View style={s.toolbar}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.toolbarContent}>
               <View style={s.toolGroup}>{TOOLS.map(({ tool, label, icon }) => <Pressable key={tool} accessibilityRole="button" accessibilityLabel={label}
@@ -224,6 +245,7 @@ function SketchBrowser() {
         <Icon name="minimize" size={19} color={GREEN} /><Text style={s.libraryButtonText}>전체화면 종료</Text>
       </Pressable>}
     </View>
+    <ReviewPanel visible={reviewOpen} onClose={() => setReviewOpen(false)} />
   </SafeAreaView>;
 }
 

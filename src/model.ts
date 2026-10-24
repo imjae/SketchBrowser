@@ -22,6 +22,7 @@ export type PageNotes = {
   title: string;
   updatedAt: string;
   strokes: Stroke[];
+  sourceHash?: string | null;
 };
 export type InkMessage = {
   channel: 'sketch-browser';
@@ -33,10 +34,12 @@ export type InkMessage = {
   canRedo: boolean;
   strokes?: Stroke[];
   pressed?: boolean;
+  sourceHash?: string | null;
 };
 export type InkCommand =
-  | { type: 'restore'; strokes: Stroke[] }
+  | { type: 'restore'; strokes: Stroke[]; sourceHash?: string | null }
   | { type: 'settings'; settings: InkSettings }
+  | { type: 'capture' | 'captureCheck' | 'captureRelease'; nonce: string }
   | { type: 'undo' | 'redo' | 'flush' };
 
 export const DEFAULT_SETTINGS: InkSettings = { tool: 'browse', color: '#315de8', width: 3, penOnly: false };
@@ -69,6 +72,7 @@ export function parseInkMessage(raw: string): InkMessage | null {
       typeof m.documentId !== 'string' || m.documentId.length > 100 || typeof m.title !== 'string' || m.title.length > 300 ||
       !Number.isSafeInteger(m.revision) || m.revision < 0 || typeof m.canUndo !== 'boolean' || typeof m.canRedo !== 'boolean') return null;
     if (m.type === 'change' && !validStrokes(m.strokes)) return null;
+    if (m.sourceHash !== undefined && m.sourceHash !== null && !/^[a-f0-9]{64}$/.test(m.sourceHash)) return null;
     if (m.type === 'penButton' && typeof m.pressed !== 'boolean') return null;
     return m as InkMessage;
   } catch { return null; }

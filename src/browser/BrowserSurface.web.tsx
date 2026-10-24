@@ -40,6 +40,7 @@ export const BrowserSurface = forwardRef<BrowserHandle, BrowserProps>(function B
     back: () => undefined,
     forward: () => undefined,
     reload: () => setReload((value) => value + 1),
+    captureReview: async () => { throw new Error('필기 전송은 Android 앱에서 사용할 수 있어요.'); },
   }), []);
 
   if (!demo) return <View style={styles.empty}>

@@ -1,0 +1,73 @@
+# 필기로 블로그 수정하기
+
+2026-10-25. imjae.github.io 소유자 한 명을 위한 실제 실행 경로다.
+
+## 사용하는 순서
+
+1. 새 APK에서 `https://imjae.github.io/writing/<slug>/` 글을 열고 필기한다.
+2. 원문과 수정 힌트가 한 화면에 보일 때 **현재 화면의 필기로 수정 요청**을 누른다.
+3. 수정 요청 화면에서 본인의 GitHub 계정으로 로그인한다. 캡처를 확인하고 필요한 설명을 적은 뒤 **AI로 수정안 만들기**를 누른다.
+4. PC 실행기가 수정안을 만들고 사이트 검사, 편집 서버 빌드, 브라우저 검사를 수행한다.
+5. **수정 요청 목록**에서 보낸 필기, AI 해석, 실제 Markdown diff, 글 미리보기를 확인한다. 추가 요청을 적어 다시 수정하거나 폐기할 수 있다.
+6. 확인 체크박스를 선택하고 **이 수정안 승인·배포**를 누른다. 승인한 커밋을 main에 올린 뒤 Pages와 편집 서버 Actions, 두 서버의 글 버전이 일치하면 완료로 표시한다.
+
+PC가 꺼져 있어도 전송한 요청과 업로드한 미리보기, 승인은 서버에 남는다. AI 수정과 main 반영은 PC가 실행 중일 때 진행한다. 첫 버전은 공개 글 한 편의 본문만 지원한다. 메타데이터, 날짜, slug, draft, 새 글·삭제, 포트폴리오와 사이트 코드는 수정하지 않는다.
+
+## PC 설정과 실행
+
+Windows, PowerShell 7, Node 24, Git, 설치된 Chrome, 로그인된 Codex CLI와 Git 자격 증명, 블로그의 npm 의존성이 필요하다. 이 저장소는 별도 버전의 Codex CLI를 의존성으로 고정한다.
+
+```powershell
+pnpm install
+pnpm review:setup --blog D:/dev/imjae.github.io
+pnpm review:start
+# 상태와 오류: %LOCALAPPDATA%/SketchBrowserRunner/runner*.log
+pnpm review:stop
+# 포그라운드 실행 또는 한 작업만 실행
+pnpm review:runner
+pnpm review:runner --once
+```
+
+setup은 기존 Cloudflare 로그인으로 `SKETCH_RUNNER_TOKEN` 비밀 값을 Worker에 등록한다. 이 값은 명령 인자·Git·출력에 넣지 않는다. PC에서는 현재 Windows 사용자에게 묶인 DPAPI 암호문으로 보관한다. 기존 설정이 있으면 유지한다. 설정 경로는 `%LOCALAPPDATA%/SketchBrowserRunner/config.json`이다. 기본 모델은 `gpt-6-astra`, 추론은 `xhigh`이며 config에서 바꿀 수 있다. Codex 계정의 사용량을 소비한다.
+
+`review:start`는 숨겨진 프로세스를 시작하고 PID를 기록한다. 중복 실행을 피하며 `review:stop`으로 종료한다. Windows 재부팅 후에는 다시 실행한다. 자동 시작 등록은 하지 않는다. AI는 서비스 호출이므로 인터넷 연결이 필요하다.
+
+## 구현 경로
+
+| 부분 | 코드와 역할 |
+| --- | --- |
+| 캡처 | `src/ink/engine.ts`, `src/browser/BrowserSurface.tsx`: 현재 화면의 PNG, 보이는 획·텍스트, 원문 해시. 전후 문서·스크롤·크기·버전을 대조 |
+| 기기 보관 | `src/review/ReviewPanel.tsx`: 앱 전용 파일에 미전송 요청 한 개 보관. 제출 직전 설명까지 저장하고 서버 접수 응답 후 제거 |
+| 보호된 검토 화면 | 기존 Worker의 `/sketch/`. GitHub 소유자 세션과 Origin/CSRF 검사로 접수·수정·승인 |
+| 영구 대기열 | 블로그 `server/sketch-review.mjs`의 별도 SQLite Durable Object. 이미지·검토 HTML을 분할 저장하고 해시 검사 |
+| AI 실행 | `runner/core.mjs`, `runner/main.mjs`: 별도 clone/worktree, 원문 조회, 이미지+문맥+작성 규칙으로 구조화된 문장 교체 제안 요청 |
+| 미리보기 | `runner/preview.mjs`: 실제 Astro 빌드를 Chrome으로 검사하고 CSS·렌더된 도표를 담은 정적 HTML 생성 |
+| 배포 | 승인 영수증·커밋·미리보기·diff·작업 공간을 재검사한 뒤 승인된 head를 일반 push. 동일 head의 두 Actions 및 실제 원문 해시 확인 |
+
+현재 HTTP 계약은 앱의 `transfer.ts`와 블로그의 `sketch-protocol.mjs`가 기준이다. 이전 `contract.ts`의 `RevisionRequest`와 `workflow.ts`는 초기 설계의 참조 모델이며 HTTP 요청 형식이나 운영 상태 저장소가 아니다. `canonicalArticleUrl`과 원본 조회 검사는 재사용한다.
+
+## 원문과 AI 변경의 경계
+
+- 공개 글의 `data-sketch-source`는 Markdown을 LF로 정규화한 SHA-256이다. 기존 필기를 복원하면 당시 해시도 복원한다. 실행 취소·다시 실행도 그 버전을 보존한다.
+- 오래된 필기 또는 버전 없는 이전 앱의 필기는 현재 이미지에서 위치와 문장이 맞는지 사용자가 확인한 뒤 전송한다. 이후 최신 main의 원문과 해시가 다르면 다시 캡처를 요청한다.
+- AI는 파일·셸·브라우저·앱 도구를 비활성화한 읽기 전용 CLI에서 제공된 이미지와 원문으로 JSON 교체 제안만 반환한다. 사용자 CLI 설정·플러그인을 읽지 않고 비밀 관련 환경변수를 제거한다. 도구 실행 이벤트가 있으면 결과를 거절한다.
+- 실행기는 본문에서 정확히 한 번 일치하는 문자열만 교체한다. 겹친 수정, 새 실행 HTML·외부 URL, 메타데이터 수정, 대상 글 외 diff는 거절한다. 모호한 필기는 질문으로 돌려보낸다.
+- 실행기와 Codex는 동일 Windows 사용자로 동작한다. 별도 OS 계정이나 VM으로 격리한 것은 아니다. 개인 소유자용이며, 다른 사용자의 임의 저장소·모델 도구 실행을 받는 서비스로 사용하지 않는다.
+
+## 미리보기·승인·배포
+
+미리보기는 실제 검사한 글의 정적 복사본이다. CSS와 렌더된 Mermaid를 포함하며 영상, 스크립트, 외부 페이지 이동은 제거한다. 로그인한 소유자만 HTML에 접근할 수 있고 iframe과 응답 CSP의 sandbox로 스크립트·동일 출처 권한을 차단한다. 기존 공개 이미지·폰트는 공개 블로그에서 불러온다. R2나 별도 미리보기 도메인은 필요하지 않다.
+
+승인은 요청 세대, review ID, 기반/결과 커밋, 미리보기·diff·검사 결과가 포함된 digest에 묶인다. 유효기간은 24시간이다. 추가 수정은 이전 승인과 결과를 무효화한다. 승인 직전과 push 직전 main을 확인하고 경쟁 변경은 자동 rebase하지 않는다. 실행기 임대는 15분, heartbeat는 45초, 대기열 확인은 15초다. 중복 실행기는 동시에 같은 저장소를 배포하지 않는다.
+
+배포 중 프로세스가 종료되면 임대 만료 후 동일 작업을 다시 확인한다. main에 이미 승인 커밋이 있으면 push를 반복하지 않고 배포 확인을 이어간다. 명시적 실패는 화면에 이유를 표시한다. Actions 실패는 해당 커밋의 Actions를 확인해 복구해야 하며, 자동 롤백이나 실패한 워크플로 재실행은 하지 않는다. main이 앞서갔다면 이전 버전을 재배포하지 않는다.
+
+## 보관과 제한
+
+한 번에 현재 보이는 화면 한 장, PNG base64 최대 4MB, 페이지당 600획/24,000좌표, 설명 4,000자다. 전송 실패 시 동일 UUID로 재시도한다. 동일 UUID의 내용이 다르면 서버는 409를 반환하며 기존 요청을 덮어쓰지 않는다. 서버 요청은 최대 100개다. 완료·폐기·실패 자료는 UI에서 삭제하거나 30일 후 자동 정리한다. 대기·검토 중 요청은 자동 삭제하지 않는다.
+
+PC의 작업 폴더·AI 로그·이미지는 사용자 전용 실행기 폴더에 남는다. 자동 로컬 정리는 하지 않으므로 필요할 때 실행기를 중지하고 정리한다. 원래 필기는 기기에 남으며 서버 제출과 별개다. 원문과 필기 이미지는 사용자의 Codex 계정을 통해 AI 서비스로 전달된다.
+
+## 검증
+
+`pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, `pnpm test:review`를 사용한다. 마지막 명령은 형제 경로의 블로그 테스트 픽스처를 사용한다. 블로그는 `npm run verify`, `npm run author:build`를 실행한다. 서버 테스트는 무승인 배포·중복 접수·임대·세대·경쟁 변경을 검사한다. 브라우저 테스트의 승인과 배포 상태 전환은 메모리 픽스처에서만 수행한다. 실제 글은 사용자가 승인하기 전에는 게시하지 않는다. APK 빌드와 자동 검사는 실물 Galaxy Tab의 로그인·화면 캡처 검증과 구분한다.

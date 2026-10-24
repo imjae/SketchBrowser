@@ -2,22 +2,26 @@
   "name": "sketch-browser",
   "description": "A tablet browser with persistent, page-specific ink annotations.",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.2.0",
   "main": "index.ts",
   "dependencies": {
     "@expo/metro-runtime": "~57.0.17",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.31",
+    "expo-crypto": "~57.0.4",
+    "expo-file-system": "~57.0.7",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-svg": "15.15.4",
+    "react-native-view-shot": "5.1.0",
     "react-native-web": "^0.21.4",
     "react-native-webview": "13.16.1"
   },
   "devDependencies": {
+    "@openai/codex": "0.164.0",
     "@playwright/test": "^1.64.1",
     "@types/node": "^26.6.5",
     "@types/react": "~19.2.2",
@@ -30,11 +34,17 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
+    "review:check": "node --import tsx scripts/check-blog-link.ts",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:e2e": "node --import tsx tests/browser.e2e.mjs && node --import tsx tests/interaction.e2e.mjs && node --import tsx tests/pen-button.e2e.mjs && node --import tsx tests/native-stylus.e2e.mjs",
     "export:android": "expo export --platform android",
     "export:web": "expo export --platform web",
-    "prebuild:android": "expo prebuild --platform android --no-install"
+    "prebuild:android": "expo prebuild --platform android --no-install",
+    "review:setup": "node runner/setup.mjs",
+    "review:runner": "node runner/main.mjs",
+    "review:start": "pwsh -NoProfile -File runner/start.ps1",
+    "review:stop": "pwsh -NoProfile -File runner/start.ps1 -Stop",
+    "test:review": "node --import tsx tests/review.e2e.mjs"
   },
   "packageManager": "pnpm@11.25.0"
 }

@@ -11,6 +11,9 @@ export const INK_SCRIPT = String.raw`
   var penButtonDown = false, ignorePenContextUntil = 0;
   var domPenContact = false, nativePenContact = false, nativeOwned = false, nativeSource = false, nativeStream = null;
   var documentId = newId(), lastRoute = route();
+  var captureLock = null, captureTimer = null;
+  var annotationSourceHash = null;
+  function pageSourceHash() { var el = document.querySelector('[data-sketch-source]'); return el ? el.getAttribute('data-sketch-source') : null; }
   var canvas = document.createElement('canvas');
   canvas.setAttribute('data-sketch-browser-ink', '');
   canvas.setAttribute('aria-hidden', 'true');
@@ -28,7 +31,7 @@ export const INK_SCRIPT = String.raw`
     var payload = { channel: 'sketch-browser', type: type, documentId: documentId,
       revision: revision, title: (document.title || location.hostname || '새 페이지').slice(0, 300),
       canUndo: undo.length > 0, canRedo: redo.length > 0 };
-    if (type === 'change') payload.strokes = strokes;
+    if (type === 'change') { payload.strokes = strokes; payload.sourceHash = annotationSourceHash; }
     if (type === 'penButton') payload.pressed = penButtonDown;
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(payload));
   }
@@ -129,8 +132,8 @@ export const INK_SCRIPT = String.raw`
       y: Math.round((event.clientY + scrollY) * 10) / 10,
       pressure: event.pointerType === 'pen' && event.pressure > 0 ? Math.round(event.pressure * 100) / 100 : 0.5 };
   }
-  function remember(before) { undo.push(before); if (undo.length > 50) undo.shift(); redo = []; }
-  function commit(before) { remember(before); revision++; message('change'); requestDraw(); }
+  function remember(before) { undo.push({ strokes: before, sourceHash: annotationSourceHash }); if (undo.length > 50) undo.shift(); redo = []; }
+  function commit(before) { remember(before); if (!before.length || !strokes.length) annotationSourceHash = pageSourceHash(); revision++; message('change'); requestDraw(); }
   function pointCount() { var n = 0; for (var i = 0; i < strokes.length; i++) n += strokes[i].points.length; return n; }
   function distanceToSegment(p, a, b) {
     var dx = b.x - a.x, dy = b.y - a.y, length = dx * dx + dy * dy;
@@ -159,6 +162,7 @@ export const INK_SCRIPT = String.raw`
     erasedBefore.last = p;
   }
   function pointerDown(event) {
+    if (captureLock) return;
     var tool = event.pointerType === 'pen' && penButtonDown ? 'eraser' : settings.tool;
     if (!hydrated || tool === 'browse' || touchNavigation || active || erasedBefore || !event.isPrimary ||
       (event.pointerType === 'mouse' && event.button !== 0) || (settings.penOnly && event.pointerType !== 'pen')) return;
@@ -396,9 +400,39 @@ export const INK_SCRIPT = String.raw`
   function receive(command, expectedId) {
     if (expectedId && expectedId !== documentId) return;
     switch (command.type) {
+      case 'capture':
+        if (!hydrated || captureLock || !/^[a-zA-Z0-9-]{1,100}$/.test(command.nonce)) return;
+        finish(null, false); setPenButton(false, false); draw();
+        var view = window.visualViewport;
+        var box = { x: view ? view.pageLeft : scrollX, y: view ? view.pageTop : scrollY,
+          width: view ? view.width : innerWidth, height: view ? view.height : innerHeight, scale: view ? view.scale : 1 };
+        var visible = [], cache = new Map();
+        strokes.forEach(function(s) {
+          var t = transformFor(s, cache);
+          if (s.points.some(function(p) { var q = positioned(p, s, t); return q.x >= box.x && q.y >= box.y && q.x <= box.x + box.width && q.y <= box.y + box.height; })) visible.push(s);
+        });
+        var text = [];
+        document.querySelectorAll('article.prose h2,article.prose h3,article.prose p,article.prose li,article.prose pre,article.prose table, .article-header h1, .article-description').forEach(function(el) {
+          var r = el.getBoundingClientRect();
+          if (r.bottom > 0 && r.top < innerHeight && r.width) text.push((el.textContent || '').trim());
+        });
+        captureLock = { nonce: command.nonce, documentId: documentId, revision: revision, x: scrollX, y: scrollY, w: innerWidth, h: innerHeight, scale: box.scale, pageHeight: document.documentElement.scrollHeight, sourceHash: pageSourceHash() };
+        clearTimeout(captureTimer); captureTimer = setTimeout(function() { captureLock = null; }, 12000);
+        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ channel: 'sketch-review', nonce: command.nonce,
+          context: { documentId: documentId, revision: revision, url: location.href, title: (document.title || '').slice(0,300),
+            sourceHash: annotationSourceHash, currentSourceHash: pageSourceHash(), visibleText: text.join('\n\n').slice(0,16000), strokes: visible, viewport: box } }));
+        break;
+      case 'captureCheck':
+        var ok = captureLock && captureLock.nonce === command.nonce && captureLock.documentId === documentId && captureLock.revision === revision &&
+          captureLock.x === scrollX && captureLock.y === scrollY && captureLock.w === innerWidth && captureLock.h === innerHeight && captureLock.scale === (window.visualViewport ? window.visualViewport.scale : 1) && captureLock.pageHeight === document.documentElement.scrollHeight && captureLock.sourceHash === pageSourceHash();
+        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ channel: 'sketch-review-check', nonce: command.nonce, ok: !!ok }));
+        break;
+      case 'captureRelease':
+        if (captureLock && captureLock.nonce === command.nonce) { captureLock = null; clearTimeout(captureTimer); }
+        break;
       case 'restore':
         if (hydrated) return;
-        strokes = command.strokes; hydrated = true; undo = []; redo = [];
+        strokes = command.strokes; annotationSourceHash = strokes.length ? command.sourceHash || null : pageSourceHash(); hydrated = true; undo = []; redo = [];
         updateInput(); requestDraw(); message('state'); break;
       case 'settings':
         // Acknowledge an automatic tool change without splitting its first stroke.
@@ -408,11 +442,11 @@ export const INK_SCRIPT = String.raw`
       case 'undo':
         if (!hydrated) return;
         finish(null, false);
-        if (undo.length) { redo.push(strokes); strokes = undo.pop(); revision++; message('change'); requestDraw(); } break;
+        if (undo.length) { redo.push({ strokes: strokes, sourceHash: annotationSourceHash }); var previous = undo.pop(); strokes = previous.strokes; annotationSourceHash = previous.sourceHash; revision++; message('change'); requestDraw(); } break;
       case 'redo':
         if (!hydrated) return;
         finish(null, false);
-        if (redo.length) { undo.push(strokes); strokes = redo.pop(); revision++; message('change'); requestDraw(); } break;
+        if (redo.length) { undo.push({ strokes: strokes, sourceHash: annotationSourceHash }); var following = redo.pop(); strokes = following.strokes; annotationSourceHash = following.sourceHash; revision++; message('change'); requestDraw(); } break;
       case 'flush': finish(null, false); setPenButton(false, false); break;
     }
   }

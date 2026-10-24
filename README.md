@@ -37,6 +37,12 @@ pnpm web
 - 스크롤·확대와 문단의 위치 변경을 반영하는 필기 레이어. 가로·세로 태블릿 화면과 접이식 서재를 지원합니다.
 - 인터넷 없이도 사용할 수 있는 두 개의 연습 페이지.
 
+## 필기로 블로그 수정
+
+Android에서 공개 글에 필기한 뒤 **현재 화면의 필기로 수정 요청**을 누르면 소유자 GitHub 로그인 화면으로 연결됩니다. 캡처와 설명을 전송하고 PC 실행기가 만든 변경 비교·미리보기를 확인합니다. **이 수정안 승인·배포**를 눌러야 실제 블로그에 반영합니다. [사용법과 PC 실행기 설정](docs/blog-review-flow.md)을 참고하세요.
+
+`pnpm review:setup`으로 서버 연결을 설정하고 `pnpm review:start`로 PC 실행기를 시작합니다. Windows 재부팅 후에는 다시 실행해야 합니다. 수정 요청·미리보기·승인은 기존 보호된 Worker에 저장됩니다. 일반 웹 필기는 계속 기기에만 저장됩니다.
+
 ## 저장과 위치 보정
 
 기기에 URL별 레코드를 저장하며 서버나 계정은 필요하지 않습니다. 일반 `#section` 링크는 같은 페이지의 필기를 공유하고, 쿼리 문자열과 `#/route`, `#!/route`는 별도 페이지로 구분합니다. 로딩 중에는 필기를 잠가서 기존 기록을 빈 데이터로 덮어쓰지 않습니다. 저장 순서를 직렬화하고, 저장 실패 시 현재 실행 세션의 초안을 유지합니다.
@@ -68,7 +74,7 @@ Java 17과 Android SDK가 준비된 환경에서는 `pnpm prebuild:android` 후 
 
 ## 태블릿에 APK 설치하기
 
-[GitHub Actions의 Android test APK](https://github.com/imjae/SketchBrowser/actions/workflows/android-apk.yml)에서 최신 성공 실행을 열고, **Artifacts → SketchBrowser-android-test**를 다운로드하세요. ZIP 안의 `SketchBrowser-0.1.4-test.apk`를 태블릿으로 옮겨 실행하면 설치됩니다. 설치 화면에서 요청하는 경우 해당 파일 앱 또는 브라우저의 **이 출처 허용**을 켜 주세요.
+[GitHub Actions의 Android test APK](https://github.com/imjae/SketchBrowser/actions/workflows/android-apk.yml)에서 최신 성공 실행을 열고, **Artifacts → SketchBrowser-android-test**를 다운로드하세요. ZIP 안의 `SketchBrowser-0.2.0-test.apk`를 태블릿으로 옮겨 실행하면 설치됩니다. 설치 화면에서 요청하는 경우 해당 파일 앱 또는 브라우저의 **이 출처 허용**을 켜 주세요.
 
 이 APK는 앱 코드를 포함하므로 **Expo Go나 PC 개발 서버 없이 실행**됩니다. ARM64·ARMv7 Android 태블릿을 지원하며, 필기는 설치한 앱의 기기에 저장됩니다. 외부 웹페이지를 열 때에는 인터넷이 필요합니다. 서명은 Expo 템플릿의 테스트 키를 사용합니다.
 

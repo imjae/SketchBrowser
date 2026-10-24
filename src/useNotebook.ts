@@ -82,7 +82,7 @@ export function useNotebook(browser: RefObject<BrowserHandle | null>, settings: 
         session.page = page; session.loaded = true;
         setStrokeCount(page?.strokes.length ?? 0);
         browser.current?.send({ type: 'settings', settings: latestSettings.current }, session.id);
-        browser.current?.send({ type: 'restore', strokes: page?.strokes ?? [] }, session.id);
+        browser.current?.send({ type: 'restore', strokes: page?.strokes ?? [], sourceHash: page?.sourceHash ?? null }, session.id);
         const unsaved = drafts.current.has(url);
         setStatus(unsaved ? 'error' : page?.strokes.length ? 'saved' : 'ready');
         if (unsaved) setError('아직 기기에 저장되지 않은 필기예요. 다시 저장해 주세요.');
@@ -103,7 +103,7 @@ export function useNotebook(browser: RefObject<BrowserHandle | null>, settings: 
       session.revision = message.revision;
       setLimit(false);
       const page: PageNotes = { version: 1, url, title: message.title || shortAddress(url),
-        updatedAt: new Date().toISOString(), strokes: message.strokes };
+        updatedAt: new Date().toISOString(), strokes: message.strokes, sourceHash: message.sourceHash ?? null };
       session.page = page;
       setStrokeCount(page.strokes.length);
       void persist(session, page);
