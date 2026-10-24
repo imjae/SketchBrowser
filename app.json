@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "SketchBrowser",
+    "slug": "sketch-browser",
+    "version": "0.1.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.sketchbrowser.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#48694f",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "web": {
+      "name": "SketchBrowser",
+      "description": "웹 위에 남기는 나만의 생각. 태블릿 필기 브라우저.",
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
