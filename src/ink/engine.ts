@@ -211,7 +211,7 @@ export const INK_SCRIPT = String.raw`
     penButtonDown = pressed; updateInput(); message('penButton');
   }
   function enterPen() {
-    if (settings.tool !== 'browse') return;
+    if (penButtonDown || settings.tool !== 'browse') return;
     settings = { tool: 'pen', color: settings.color, width: settings.width, penOnly: settings.penOnly };
     updateInput(); message('pen');
   }
@@ -224,10 +224,10 @@ export const INK_SCRIPT = String.raw`
     // pressing/releasing a barrel button during tip contact is a chorded move.
     var pressed = !ended && !!(event.buttons & (2 | 32));
     var contact = !ended && (!!(event.buttons & (1 | 32)) || event.pressure > 0);
-    if (contact && !wasContact) enterPen();
     domPenContact = contact;
     if (ended) finish(event, cancelled);
     setPenButton(pressed, cancelled);
+    if (contact && !wasContact) enterPen();
     if (!contact && !wasContact && !pressed && !wasDown) return;
     event.preventDefault(); event.stopPropagation();
     ignorePenContextUntil = Date.now() + 350;
@@ -317,7 +317,10 @@ export const INK_SCRIPT = String.raw`
     if (!packet || !hydrated) return;
     if (packet.reset) { resetNativeInput(true); return; }
     if (packet.start) {
-      resetNativeInput(true); nativeStream = packet.stream; nativeOwned = true;
+      // A new tip contact is not a button release: keep the hover button state
+      // until the new sample updates it, without notifying React of a false up.
+      finish(null, true); resetTouchNavigation(); nativePenContact = false; domPenContact = false;
+      nativeStream = packet.stream; nativeOwned = true;
     } else if (nativeOwned && packet.stream !== nativeStream) return;
     if (!(packet.width > 0 && packet.height > 0) || !Array.isArray(packet.events)) return;
     // Once the Android route is present, incomplete DOM hover/button reports
@@ -335,11 +338,13 @@ export const INK_SCRIPT = String.raw`
         pressure: Math.max(0, Math.min(1, sample.pressure || 0)), isPrimary: true, nativeStylus: true,
         preventDefault: function () {}, stopPropagation: function () { this.stopped = true; } };
       if (pen) {
-        if (type === 'down') { nativePenContact = true; enterPen(); }
         if (type === 'up' || type === 'cancel') {
           finish(event, type === 'cancel'); nativePenContact = false;
         }
-        setPenButton(type !== 'cancel' && type !== 'leave' && !!sample.pressed, type === 'cancel');
+        // Hover exit also occurs just before tip contact; it must not release
+        // a held button. Apply hardware state before automatic pen selection.
+        setPenButton(type !== 'cancel' && !!sample.pressed, type === 'cancel');
+        if (type === 'down') { nativePenContact = true; enterPen(); }
         ignorePenContextUntil = Date.now() + 350;
         if (type === 'leave') { if (nativePenContact) finish(null, true); nativePenContact = false; }
         if (nativeOwned && nativePenContact && !touchNavigation) {

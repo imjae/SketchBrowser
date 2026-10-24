@@ -54,13 +54,19 @@ try {
   await mode('형광펜'); await count(1);
   await tool('실행 취소').click(); await count(2);
 
-  // Restore whichever tool was selected, including browse with no canvas hit test.
+  // Contact while holding the button must not automatically select pen, even
+  // from browse. Restore the selected tool only when the button is released.
   for (const name of ['펜', '밑줄', '형광펜', '탐색']) {
     await tool(name).click();
     await pen('mousePressed', 150, 390, 'right', 2, 0);
     await mode('지우개');
+    await pen('mousePressed', 150, 390, 'left', 3, 0.8);
+    await pen('mouseMoved', 210, 390, 'none', 3, 0.8);
+    await pen('mouseReleased', 210, 390, 'left', 2, 0);
+    await mode('지우개'); await count(1);
     await pen('mouseReleased', 150, 390, 'right', 0, 0);
-    await mode(name); await count(2);
+    await mode(name); await count(1);
+    await tool('실행 취소').click(); await count(2);
   }
 
   // Some stylus drivers report barrel-only buttons=2 plus contact pressure.
@@ -68,7 +74,7 @@ try {
   await mode('지우개');
   await pen('mouseMoved', 210, 390, 'none', 2, 0.8);
   await pen('mouseReleased', 210, 390, 'right', 0, 0);
-  await count(1); await mode('펜');
+  await count(1); await mode('탐색');
   await tool('실행 취소').click(); await count(2);
 
   // Release the barrel while the tip is still down: resume the original pen

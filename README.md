@@ -27,7 +27,7 @@ pnpm web
 - **탐색 / 펜 / 밑줄 / 형광펜 / 지우개** 도구. 지우개는 닿은 획 전체를 지웁니다.
 - 5가지 색, 3가지 굵기, 펜 압력 반영, 실행 취소·다시 실행.
 - **펜만** 옵션: 손가락·마우스 입력을 필기에서 제외합니다.
-- 탐색 중 **펜이 화면에 닿는 순간 펜 모드**로 전환하고 첫 획부터 그립니다. 이미 선택한 밑줄·형광펜·지우개는 유지하며 호버·손가락·마우스로는 자동 전환하지 않습니다.
+- 탐색 중 **펜이 화면에 닿는 순간 펜 모드**로 전환하고 첫 획부터 그립니다. S Pen 측면 버튼을 누르는 동안에는 이 자동 전환을 막고 지우개를 유지합니다. 이미 선택한 밑줄·형광펜·지우개는 유지하며 호버·손가락·마우스로는 자동 전환하지 않습니다.
 - **S Pen 측면 버튼을 누르는 동안 지우개**로 동작하며 놓으면 이전 도구로 돌아갑니다. 펜이 화면에 닿았을 때만 지우고, 호버 중에는 도구 표시만 바뀝니다. Android에서는 WebView가 버튼 입력을 텍스트 선택으로 소비하기 전에 Activity에서 원래 펜 입력을 받아 공통 필기 엔진에 전달합니다. 실제 Galaxy Tab의 S Pen·WebView 조합에서 확인이 필요합니다.
 - 필기 도구를 사용하다가 **두 손가락을 같은 방향으로 드래그**하면 탐색 모드로 전환하고 바로 스크롤합니다. 진행 중인 획·지우기는 취소하며 기존 필기를 유지합니다. 단순한 두 손가락 터치나 핀치는 전환하지 않습니다.
 - 주소창의 **도구 접기·펼치기**로 펜 도구 모음을 숨기고 다시 표시합니다.
@@ -66,7 +66,7 @@ E2E는 기본적으로 설치된 Google Chrome을 사용합니다. Playwright Ch
 
 ## 태블릿에 APK 설치하기
 
-[GitHub Actions의 Android test APK](https://github.com/imjae/SketchBrowser/actions/workflows/android-apk.yml)에서 최신 성공 실행을 열고, **Artifacts → SketchBrowser-android-test**를 다운로드하세요. ZIP 안의 `SketchBrowser-0.1.2-test.apk`를 태블릿으로 옮겨 실행하면 설치됩니다. 설치 화면에서 요청하는 경우 해당 파일 앱 또는 브라우저의 **이 출처 허용**을 켜 주세요.
+[GitHub Actions의 Android test APK](https://github.com/imjae/SketchBrowser/actions/workflows/android-apk.yml)에서 최신 성공 실행을 열고, **Artifacts → SketchBrowser-android-test**를 다운로드하세요. ZIP 안의 `SketchBrowser-0.1.3-test.apk`를 태블릿으로 옮겨 실행하면 설치됩니다. 설치 화면에서 요청하는 경우 해당 파일 앱 또는 브라우저의 **이 출처 허용**을 켜 주세요.
 
 이 APK는 앱 코드를 포함하므로 **Expo Go나 PC 개발 서버 없이 실행**됩니다. ARM64·ARMv7 Android 태블릿을 지원하며, 필기는 설치한 앱의 기기에 저장됩니다. 외부 웹페이지를 열 때에는 인터넷이 필요합니다. 서명은 Expo 템플릿의 테스트 키를 사용합니다.
 

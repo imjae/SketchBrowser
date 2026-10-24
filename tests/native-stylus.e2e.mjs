@@ -13,7 +13,7 @@ const mode = (name) => expect(page.getByText(new RegExp(`^${name} 모드`))).toB
 const count = (n) => expect(page.getByText(`${n}개의 획`, { exact: true }).last()).toBeVisible();
 const notes = () => page.evaluate(() => JSON.parse(localStorage.getItem('@sketch-browser/page/v1/' + encodeURIComponent('sketch://welcome'))));
 let stream = 0;
-const pen = (type, x, y, pressed = false) => ({ kind: 'pen', id: 0, type, x, y, pressed, pressure: type === 'state' || type === 'up' ? 0 : 0.75 });
+const pen = (type, x, y, pressed = false) => ({ kind: 'pen', id: 0, type, x, y, pressed, pressure: ['state', 'up', 'leave', 'cancel'].includes(type) ? 0 : 0.75 });
 const finger = (type, id, x, y) => ({ kind: 'touch', id, type, x, y, pressed: false, pressure: 0.5 });
 async function native(events, flags = {}, scale = 3) {
   if (flags.start) stream++;
@@ -32,6 +32,15 @@ async function stroke(y, held = false) {
 try {
   await page.goto(process.env.SKETCH_TEST_URL || 'http://localhost:8081', { waitUntil: 'networkidle', timeout: 120000 });
   await expect(page.getByText('필기할 준비 완료', { exact: true })).toBeVisible({ timeout: 60000 });
+  await frame().evaluate(() => {
+    const postMessage = window.ReactNativeWebView.postMessage;
+    window.toolMessages = [];
+    window.ReactNativeWebView.postMessage = (raw) => {
+      const message = JSON.parse(raw);
+      if (message.type === 'penButton' || message.type === 'pen') window.toolMessages.push(message);
+      postMessage(raw);
+    };
+  });
   const cdp = await context.newCDPSession(page);
   const bounds = await page.locator('iframe').boundingBox();
   const domPen = (type, x, buttons, force) => cdp.send('Input.dispatchMouseEvent', {
@@ -66,6 +75,30 @@ try {
   await native([pen('state', 150, 300)]); await mode('펜'); await count(2);
   await stroke(300, true); await count(1); await mode('지우개');
   await native([pen('state', 220, 300)]); await mode('펜');
+  await tool('실행 취소').click(); await count(2);
+
+  // The button owns the tool across hover exit, tip down/up and repeated
+  // contacts. No transient release or automatic pen selection may reach React.
+  for (const name of ['펜', '밑줄', '형광펜', '탐색']) {
+    await tool(name).click();
+    await frame().evaluate(() => { window.toolMessages = []; });
+    await native([pen('state', 150, 300, true)]); await mode('지우개');
+    await native([pen('leave', 150, 300, true)]); await mode('지우개');
+    await stroke(300, true); await count(1); await mode('지우개');
+    await domPen('mouseMoved', 150, 0, 0); await mode('지우개');
+    await stroke(390, true); await count(0); await mode('지우개');
+    const transitions = await frame().evaluate(() => window.toolMessages.map(({ type, pressed }) => ({ type, pressed })));
+    assert.deepEqual(transitions, [{ type: 'penButton', pressed: true }], `held button must lock eraser from ${name}`);
+    await native([pen('state', 220, 390)]); await mode(name);
+    await tool('실행 취소').click(); await count(1);
+    await tool('실행 취소').click(); await count(2);
+  }
+
+  // A held button on the very first contact also takes priority over browse.
+  await stroke(300, true); await count(1); await mode('지우개');
+  await native([pen('state', 220, 300)]); await mode('탐색');
+  await tool('실행 취소').click(); await count(2);
+  await stroke(520); await count(3); await mode('펜');
   await tool('실행 취소').click(); await count(2);
 
   // The physical button can start erasing and restore drawing mid-contact.

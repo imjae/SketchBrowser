@@ -21,6 +21,9 @@ class SketchStylusInput(private val activity: Activity) {
   private var lastView: WebView? = null
   private var streamId = 0L
   private var keyHeld = false
+  private var motionButtonsHeld = 0
+  private val penButtonMask = MotionEvent.BUTTON_STYLUS_PRIMARY or
+    MotionEvent.BUTTON_STYLUS_SECONDARY or MotionEvent.BUTTON_SECONDARY
   private var lastPen: JSONObject? = null
   private val location = IntArray(2)
 
@@ -60,8 +63,7 @@ class SketchStylusInput(private val activity: Activity) {
     val y = if (history < 0) event.getY(index) else event.getHistoricalY(index, history)
     val pressure = if (history < 0) event.getPressure(index) else event.getHistoricalPressure(index, history)
     val eraser = event.getToolType(index) == MotionEvent.TOOL_TYPE_ERASER
-    val held = keyHeld || eraser || (event.buttonState and
-      (MotionEvent.BUTTON_STYLUS_PRIMARY or MotionEvent.BUTTON_STYLUS_SECONDARY or MotionEvent.BUTTON_SECONDARY)) != 0
+    val held = keyHeld || motionButtonsHeld != 0 || eraser || (event.buttonState and penButtonMask) != 0
     return JSONObject()
       .put("kind", if (isPen(event, index)) "pen" else "touch")
       .put("id", event.getPointerId(index)).put("type", type)
@@ -121,10 +123,17 @@ class SketchStylusInput(private val activity: Activity) {
 
   fun onGenericMotion(event: MotionEvent): Boolean {
     val index = (0 until event.pointerCount).firstOrNull { isPen(event, it) } ?: return false
-    val view = captured ?: target(event, index) ?: return false
+    // Explicit button events remain authoritative when a hover/contact
+    // transition omits buttonState. Only the matching release clears them.
+    val button = event.actionButton and penButtonMask
+    when (event.actionMasked) {
+      MotionEvent.ACTION_BUTTON_PRESS -> motionButtonsHeld = motionButtonsHeld or button
+      MotionEvent.ACTION_BUTTON_RELEASE -> motionButtonsHeld = motionButtonsHeld and button.inv()
+    }
+    val view = captured ?: target(event, index)
+      ?: lastView?.takeIf { event.actionMasked == MotionEvent.ACTION_BUTTON_RELEASE } ?: return false
     lastView = view
     val item = sample(view, event, index, if (event.actionMasked == MotionEvent.ACTION_HOVER_EXIT) "leave" else "state")
-    if (event.actionMasked == MotionEvent.ACTION_HOVER_EXIT) item.put("pressed", false)
     lastPen = JSONObject(item.toString())
     send(view, JSONArray().put(item))
     return event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS || event.actionMasked == MotionEvent.ACTION_BUTTON_RELEASE
@@ -149,5 +158,6 @@ class SketchStylusInput(private val activity: Activity) {
     lastView = null
     lastPen = null
     keyHeld = false
+    motionButtonsHeld = 0
   }
 }
