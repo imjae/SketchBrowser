@@ -3,10 +3,10 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { randomUUID } from 'node:crypto';
+import { homedir } from 'node:os';
 import { run, git, hash, normalizedHash, inside, applyReplacements, askCodex } from './core.mjs';
 import { verifyAndPreview } from './preview.mjs';
 
-const appRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const repoUrl='https://github.com/imjae/imjae.github.io.git';
 const npmCli=join(dirname(process.execPath),'node_modules/npm/bin/npm-cli.js');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -139,7 +139,7 @@ export async function tick(config) {
 
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   const {values}=parseArgs({options:{config:{type:'string'},once:{type:'boolean',default:false}}});
-  const config=await loadConfig(values.config||join(process.env.LOCALAPPDATA,'SketchBrowserRunner','config.json'));
+  const config=await loadConfig(values.config||join(homedir(),'.sketch-browser-runner','config.json'));
   await mkdir(config.root,{recursive:true});
   do {try{await tick(config);}catch(e){console.error(`${new Date().toISOString()} ${e.message}`);}if(!values.once)await sleep(15000);}while(!values.once);
 }

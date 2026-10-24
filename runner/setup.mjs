@@ -2,12 +2,13 @@ import { readFile, writeFile, mkdir, access } from 'node:fs/promises';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
+import { homedir } from 'node:os';
 import { parseArgs } from 'node:util';
 import { run } from './core.mjs';
 
 const {values}=parseArgs({options:{blog:{type:'string'},root:{type:'string'},model:{type:'string',default:'gpt-6-astra'}}});
 const app=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const root=resolve(values.root||join(process.env.LOCALAPPDATA,'SketchBrowserRunner'));
+const root=resolve(values.root||join(homedir(),'.sketch-browser-runner'));
 const blogRoot=resolve(values.blog||join(app,'../imjae.github.io'));
 const configPath=join(root,'config.json'),credential=join(root,'credential.enc');
 await access(join(blogRoot,'wrangler.authoring.jsonc'));await mkdir(root,{recursive:true});

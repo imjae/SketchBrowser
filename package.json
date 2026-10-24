@@ -42,8 +42,8 @@
     "prebuild:android": "expo prebuild --platform android --no-install",
     "review:setup": "node runner/setup.mjs",
     "review:runner": "node runner/main.mjs",
-    "review:start": "pwsh -NoProfile -File runner/start.ps1",
-    "review:stop": "pwsh -NoProfile -File runner/start.ps1 -Stop",
+    "review:start": "node runner/launch.mjs",
+    "review:stop": "node runner/launch.mjs --stop",
     "test:review": "node --import tsx tests/review.e2e.mjs"
   },
   "packageManager": "pnpm@11.25.0"

@@ -1,6 +1,6 @@
 param([switch]$Stop)
 $ErrorActionPreference = 'Stop'
-$runnerDirectory = Join-Path $env:LOCALAPPDATA 'SketchBrowserRunner'
+$runnerDirectory = Join-Path $env:USERPROFILE '.sketch-browser-runner'
 $runnerScript = Join-Path $PSScriptRoot 'main.mjs'
 $pidFile = Join-Path $runnerDirectory 'process.json'
 if (Test-Path -LiteralPath $pidFile) {

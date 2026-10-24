@@ -21,14 +21,14 @@ Windows, PowerShell 7, Node 24, Git, 설치된 Chrome, 로그인된 Codex CLI와
 pnpm install
 pnpm review:setup --blog D:/dev/imjae.github.io
 pnpm review:start
-# 상태와 오류: %LOCALAPPDATA%/SketchBrowserRunner/runner*.log
+# 상태와 오류: %USERPROFILE%/.sketch-browser-runner/runner*.log
 pnpm review:stop
 # 포그라운드 실행 또는 한 작업만 실행
 pnpm review:runner
 pnpm review:runner --once
 ```
 
-setup은 기존 Cloudflare 로그인으로 `SKETCH_RUNNER_TOKEN` 비밀 값을 Worker에 등록한다. 이 값은 명령 인자·Git·출력에 넣지 않는다. PC에서는 현재 Windows 사용자에게 묶인 DPAPI 암호문으로 보관한다. 기존 설정이 있으면 유지한다. 설정 경로는 `%LOCALAPPDATA%/SketchBrowserRunner/config.json`이다. 기본 모델은 `gpt-6-astra`, 추론은 `xhigh`이며 config에서 바꿀 수 있다. Codex 계정의 사용량을 소비한다.
+setup은 기존 Cloudflare 로그인으로 `SKETCH_RUNNER_TOKEN` 비밀 값을 Worker에 등록한다. 이 값은 명령 인자·Git·출력에 넣지 않는다. PC에서는 현재 Windows 사용자에게 묶인 DPAPI 암호문으로 보관한다. 기존 설정이 있으면 유지한다. 설정 경로는 `%USERPROFILE%/.sketch-browser-runner/config.json`이다. 기본 모델은 `gpt-6-astra`, 추론은 `xhigh`이며 config에서 바꿀 수 있다. Codex 계정의 사용량을 소비한다.
 
 `review:start`는 숨겨진 프로세스를 시작하고 PID를 기록한다. 중복 실행을 피하며 `review:stop`으로 종료한다. Windows 재부팅 후에는 다시 실행한다. 자동 시작 등록은 하지 않는다. AI는 서비스 호출이므로 인터넷 연결이 필요하다.
 
