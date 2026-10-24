@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, access, symlink } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, access, symlink, realpath } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -15,7 +15,10 @@ export async function loadConfig(path) {
   const config=JSON.parse(await readFile(path,'utf8'));
   if(config.server!=='https://imjae-blog-author.imjae-game-dev-notes.workers.dev')throw new Error('수정 요청 서버 주소를 확인해 주세요.');
   if(!config.root || !config.blogRoot || !config.model || !config.codex)throw new Error('실행기 설정이 필요합니다.');
-  config.root=resolve(config.root);config.blogRoot=resolve(config.blogRoot);
+  await mkdir(config.root,{recursive:true});
+  // Windows Store redirects AppData. Vite's compiler and manifest must use
+  // the same physical root or CSS can silently disappear from the build.
+  config.root=await realpath(config.root);config.blogRoot=await realpath(config.blogRoot);
   // DPAPI CurrentUser ciphertext stays outside source control; plaintext only in memory.
   const encrypted=await readFile(config.credential,'utf8');
   config.token=await run(config.powershell||'pwsh.exe',['-NoProfile','-NonInteractive','-Command',"$v=[Console]::In.ReadToEnd(); $s=ConvertTo-SecureString $v; $p=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($s); try { [Console]::Out.Write([Runtime.InteropServices.Marshal]::PtrToStringBSTR($p)) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($p) }"],{input:encrypted});
@@ -30,9 +33,11 @@ export function service(config) {
 }
 
 async function prepareRepository(config) {
-  const repository=join(config.root,'repository');await mkdir(config.root,{recursive:true});
+  await mkdir(config.root,{recursive:true});config.root=await realpath(config.root);
+  const repository=join(config.root,'repository');
   try{await access(join(repository,'.git'));}catch{await run('git',['clone','--no-checkout',repoUrl,repository],{timeout:10*60*1000});}
   if(await git(repository,'remote','get-url','origin')!==repoUrl)throw new Error('실행기 저장소의 원격 주소가 다릅니다.');
+  if(process.platform==='win32')await git(repository,'config','core.longpaths','true');
   await git(repository,'fetch','origin','main');return repository;
 }
 
@@ -42,7 +47,7 @@ export async function prepare(config,job,api) {
   const target=resolver.resolveSketchSource(job.url,{root:repository,ref:baseCommit});
   if(target.sourceSha256!==job.sourceHash)return api(`jobs/${job.id}/result`,{lease:job.lease.token,kind:'needs-recapture',message:'필기한 뒤 글이 변경됐습니다. 글을 새로고침하고 현재 원문에 다시 필기해 보내 주세요.'});
   const input=await api(`jobs/${job.id}/input`);
-  const attempt=`${job.id}-${job.generation}-${randomUUID().slice(0,8)}`,work=inside(config.root,join(config.root,'work',attempt)),dataDir=inside(config.root,join(config.root,'data',attempt));
+  const attempt=`${job.id.slice(0,8)}-${job.generation}-${randomUUID().slice(0,8)}`,work=inside(config.root,join(config.root,'work',attempt)),dataDir=inside(config.root,join(config.root,'data',attempt));
   await mkdir(dirname(work),{recursive:true});await mkdir(dataDir,{recursive:true});
   await git(repository,'worktree','add','--detach',work,baseCommit);
   const source=(await readFile(join(work,target.sourcePath),'utf8')).replaceAll('\r\n','\n');
@@ -127,7 +132,7 @@ export async function tick(config) {
   let heartbeatError;
   const heartbeat=setInterval(()=>{api(`jobs/${job.id}/heartbeat`,{lease:job.lease.token}).catch(e=>{heartbeatError=e;});},45000);
   try {if(job.lease.kind==='deploy')await deploy(config,job,api);else await prepare(config,job,api);}
-  catch(e){console.error(`${job.id}: ${e.message}`);await api(`jobs/${job.id}/result`,{lease:job.lease.token,kind:job.lease.kind==='deploy'?'deployment-failed':'failed',message:e.message}).catch(()=>{});}
+  catch(e){console.error(`${job.id}: ${e.message}`);await writeFile(join(config.root,`error-${job.id}.log`),e.diagnostic||e.stack||e.message).catch(()=>{});await api(`jobs/${job.id}/result`,{lease:job.lease.token,kind:job.lease.kind==='deploy'?'deployment-failed':'failed',message:e.message}).catch(()=>{});}
   finally{clearInterval(heartbeat);if(heartbeatError)console.error('작업 연결이 끊긴 구간이 있습니다. 서버 상태를 확인합니다.');}
   return true;
 }

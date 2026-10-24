@@ -17,6 +17,7 @@ export async function verifyAndPreview({root,slug,afterHash,dataDir}) {
     if(await page.locator('a[href^="/writing/"]').count()<1)throw new Error('Home 글 목록 확인 실패');
     const article=await page.goto(origin+`/writing/${slug}/`);if(article.status()!==200)throw new Error('수정한 글 미리보기 실패');
     await page.locator('article.prose').waitFor();
+    if(await page.locator('link[rel="stylesheet"]').count()<1 || !await page.evaluate(()=>[...document.styleSheets].some(sheet=>sheet.href?.includes('/_astro/') && sheet.cssRules.length>0)))throw new Error('블로그 스타일을 불러오지 못했습니다.');
     if(await page.locator('article.prose').getAttribute('data-sketch-source')!==afterHash)throw new Error('미리보기와 수정 원본 버전이 다릅니다.');
     if(await page.locator('.mermaid-diagram').count())await page.waitForFunction(()=>[...document.querySelectorAll('.mermaid-diagram')].every(el=>el.querySelector('svg')),null,{timeout:30000});
     await page.screenshot({path:join(dataDir,'preview-desktop.png'),fullPage:true});
@@ -37,6 +38,7 @@ export async function verifyAndPreview({root,slug,afterHash,dataDir}) {
       const style=document.createElement('style');style.textContent=css.join('\n');doc.querySelector('head').append(style);
       return '<!doctype html>'+doc.outerHTML;
     },styles);
+    if(!styles.length)throw new Error('미리보기에 글 스타일이 없습니다.');
     await page.setViewportSize({width:390,height:844});await page.reload();
     await page.screenshot({path:join(dataDir,'preview-mobile.png'),fullPage:true});
     const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+2);if(overflow)throw new Error('수정 글의 모바일 가로 넘침을 확인해 주세요.');

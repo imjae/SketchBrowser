@@ -9,11 +9,14 @@ export function inside(root,path) { const part=relative(resolve(root),resolve(pa
 export function run(executable,args,{cwd,env=process.env,input,log,timeout=15*60*1000}={}) {
   return new Promise((resolveResult,reject)=>{
     const child=spawn(executable,args,{cwd,env,windowsHide:true,shell:false,stdio:['pipe','pipe','pipe']});
-    let stdout='',stderr=''; const timer=setTimeout(()=>{child.kill();reject(new Error('실행 제한 시간을 초과했습니다.'));},timeout);
+    let stdout='',stderr=''; const timer=setTimeout(()=>{
+      if(process.platform==='win32')spawn('taskkill.exe',['/PID',String(child.pid),'/T','/F'],{windowsHide:true,stdio:'ignore'}).on('error',()=>child.kill());else child.kill();
+      reject(new Error('실행 제한 시간을 초과했습니다.'));
+    },timeout);
     child.stdout.on('data',b=>{stdout+=b;if(stdout.length>10_000_000)stdout=stdout.slice(-10_000_000);});
     child.stderr.on('data',b=>{stderr+=b;if(stderr.length>2_000_000)stderr=stderr.slice(-2_000_000);});
     child.on('error',e=>{clearTimeout(timer);reject(e);});
-    child.on('close',async code=>{clearTimeout(timer);if(log)await writeFile(log,stdout+'\n'+stderr);if(code!==0)reject(new Error(`${executable.split(/[\\/]/).at(-1)} 실행 실패 (${code}). 로컬 실행 기록을 확인해 주세요.`));else resolveResult(stdout.trim());});
+    child.on('close',async code=>{clearTimeout(timer);try{if(log)await writeFile(log,stdout+'\n'+stderr);if(code!==0){const error=new Error(`${executable.split(/[\\/]/).at(-1)} 실행 실패 (${code}). 로컬 실행 기록을 확인해 주세요.`);error.diagnostic=stderr;reject(error);}else resolveResult(stdout.trim());}catch(e){reject(e);}});
     child.stdin.on('error',()=>{});child.stdin.end(input);
   });
 }
