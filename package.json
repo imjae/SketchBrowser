@@ -2,7 +2,7 @@
   "name": "sketch-browser",
   "description": "A tablet browser with persistent, page-specific ink annotations.",
   "private": true,
-  "version": "0.1.3",
+  "version": "0.1.4",
   "main": "index.ts",
   "dependencies": {
     "@expo/metro-runtime": "~57.0.17",

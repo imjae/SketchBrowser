@@ -17,6 +17,15 @@ import org.json.JSONObject
  * normal Android input path. Mixed touches in an owned stroke travel together.
  */
 class SketchStylusInput(private val activity: Activity) {
+  private companion object {
+    // Samsung's button-held touch actions, also normalized by Chromium's
+    // SPenSupport before WebView handles them.
+    const val SPEN_ACTION_DOWN = 211
+    const val SPEN_ACTION_UP = 212
+    const val SPEN_ACTION_MOVE = 213
+    const val SPEN_ACTION_CANCEL = 214
+  }
+
   private var captured: WebView? = null
   private var lastView: WebView? = null
   private var streamId = 0L
@@ -30,6 +39,17 @@ class SketchStylusInput(private val activity: Activity) {
   private fun isPen(event: MotionEvent, index: Int): Boolean =
     event.getToolType(index) == MotionEvent.TOOL_TYPE_STYLUS ||
       event.getToolType(index) == MotionEvent.TOOL_TYPE_ERASER
+
+  private fun isSamsungButtonAction(action: Int): Boolean =
+    action in SPEN_ACTION_DOWN..SPEN_ACTION_CANCEL
+
+  private fun touchAction(action: Int): Int = when (action) {
+    SPEN_ACTION_DOWN -> MotionEvent.ACTION_DOWN
+    SPEN_ACTION_UP -> MotionEvent.ACTION_UP
+    SPEN_ACTION_MOVE -> MotionEvent.ACTION_MOVE
+    SPEN_ACTION_CANCEL -> MotionEvent.ACTION_CANCEL
+    else -> action
+  }
 
   // Resolve the topmost view, not just a WebView bounding box: the library
   // drawer, address bar and fullscreen exit button must remain usable by pen.
@@ -63,7 +83,8 @@ class SketchStylusInput(private val activity: Activity) {
     val y = if (history < 0) event.getY(index) else event.getHistoricalY(index, history)
     val pressure = if (history < 0) event.getPressure(index) else event.getHistoricalPressure(index, history)
     val eraser = event.getToolType(index) == MotionEvent.TOOL_TYPE_ERASER
-    val held = keyHeld || motionButtonsHeld != 0 || eraser || (event.buttonState and penButtonMask) != 0
+    val held = keyHeld || motionButtonsHeld != 0 || eraser ||
+      isSamsungButtonAction(event.actionMasked) || (event.buttonState and penButtonMask) != 0
     return JSONObject()
       .put("kind", if (isPen(event, index)) "pen" else "touch")
       .put("id", event.getPointerId(index)).put("type", type)
@@ -82,7 +103,8 @@ class SketchStylusInput(private val activity: Activity) {
   }
 
   fun onTouch(event: MotionEvent): Boolean {
-    if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+    val action = touchAction(event.actionMasked)
+    if (action == MotionEvent.ACTION_DOWN) {
       if (captured != null) cancel()
       if (!isPen(event, event.actionIndex)) return false
       captured = target(event, event.actionIndex) ?: return false
@@ -91,9 +113,9 @@ class SketchStylusInput(private val activity: Activity) {
     }
     val view = captured ?: return false
     val events = JSONArray()
-    val cancelled = event.actionMasked == MotionEvent.ACTION_CANCEL ||
+    val cancelled = action == MotionEvent.ACTION_CANCEL ||
       (Build.VERSION.SDK_INT >= 33 && (event.flags and MotionEvent.FLAG_CANCELED) != 0)
-    when (event.actionMasked) {
+    when (action) {
       MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN ->
         events.put(sample(view, event, event.actionIndex, "down"))
       MotionEvent.ACTION_MOVE -> {
@@ -115,14 +137,17 @@ class SketchStylusInput(private val activity: Activity) {
       val item = events.getJSONObject(index)
       if (item.getString("kind") == "pen") lastPen = JSONObject(item.toString())
     }
-    val end = event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL
-    send(view, events, start = event.actionMasked == MotionEvent.ACTION_DOWN, end = end)
+    val end = action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL
+    send(view, events, start = action == MotionEvent.ACTION_DOWN, end = end)
     if (end) captured = null
     return true
   }
 
   fun onGenericMotion(event: MotionEvent): Boolean {
     val index = (0 until event.pointerCount).firstOrNull { isPen(event, it) } ?: return false
+    // Some Samsung dispatch paths classify their custom actions as generic
+    // motion. They still represent contact, not hover/button-only state.
+    if (isSamsungButtonAction(event.actionMasked)) return onTouch(event)
     // Explicit button events remain authoritative when a hover/contact
     // transition omits buttonState. Only the matching release clears them.
     val button = event.actionButton and penButtonMask

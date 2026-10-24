@@ -62,11 +62,13 @@ E2E는 기본적으로 설치된 Google Chrome을 사용합니다. Playwright Ch
 
 단위 테스트는 주소 정규화, 브리지 데이터 검증, URL별 저장, 빠른 연속 저장, 저장 실패 후 재시도, 손상된 레코드 격리, Android 입력 훅의 재생성을 검증합니다. 브라우저 E2E는 필기·저장·복원, 도구 접기, 전체화면 전환과 복귀, 두 손가락 탐색 전환, 전환 중 획·지우기 취소, 펜만 모드와 내부 스크롤 영역, 펜 접촉 시 자동 전환, 버튼의 임시 지우기·도구 복귀를 검증합니다. Android와 같은 입력 패킷을 주입하여 DOM 펜 이벤트 없이도 필기·지우기·좌표 변환·입력 취소·혼합 터치가 처리되는지 검증합니다. 화면 캡처는 `test-results/`에 생성됩니다.
 
-`export:android`는 Android용 JavaScript/Hermes 번들 검증이며 **설치 가능한 APK 빌드는 아닙니다**. 이 환경에는 Android SDK·실물 태블릿이 없어 네이티브 WebView, S Pen 지연·압력, 손바닥 차단 동작은 실제 기기에서 추가 검증해야 합니다.
+Java 17과 Android SDK가 준비된 환경에서는 `pnpm prebuild:android` 후 `./android/gradlew -p tests/android testDebugUnitTest`로 네이티브 입력 테스트도 실행할 수 있습니다. Windows에서는 `./android/gradlew.bat`를 사용합니다. Robolectric에서 실제 `SketchStylusInput.kt`에 Android `MotionEvent`를 전달해 일반 펜과 삼성 전용 `211~214` 이벤트의 접촉·이동·종료·취소를 검사합니다. APK 빌드 워크플로도 이 테스트를 실행합니다.
+
+`export:android`는 Android용 JavaScript/Hermes 번들 검증이며 **설치 가능한 APK 빌드는 아닙니다**. 네이티브 입력 테스트도 실물 태블릿 검증과는 다릅니다. 네이티브 WebView, S Pen 지연·압력, 손바닥 차단 동작은 실제 기기에서 추가 검증해야 합니다.
 
 ## 태블릿에 APK 설치하기
 
-[GitHub Actions의 Android test APK](https://github.com/imjae/SketchBrowser/actions/workflows/android-apk.yml)에서 최신 성공 실행을 열고, **Artifacts → SketchBrowser-android-test**를 다운로드하세요. ZIP 안의 `SketchBrowser-0.1.3-test.apk`를 태블릿으로 옮겨 실행하면 설치됩니다. 설치 화면에서 요청하는 경우 해당 파일 앱 또는 브라우저의 **이 출처 허용**을 켜 주세요.
+[GitHub Actions의 Android test APK](https://github.com/imjae/SketchBrowser/actions/workflows/android-apk.yml)에서 최신 성공 실행을 열고, **Artifacts → SketchBrowser-android-test**를 다운로드하세요. ZIP 안의 `SketchBrowser-0.1.4-test.apk`를 태블릿으로 옮겨 실행하면 설치됩니다. 설치 화면에서 요청하는 경우 해당 파일 앱 또는 브라우저의 **이 출처 허용**을 켜 주세요.
 
 이 APK는 앱 코드를 포함하므로 **Expo Go나 PC 개발 서버 없이 실행**됩니다. ARM64·ARMv7 Android 태블릿을 지원하며, 필기는 설치한 앱의 기기에 저장됩니다. 외부 웹페이지를 열 때에는 인터넷이 필요합니다. 서명은 Expo 템플릿의 테스트 키를 사용합니다.
 

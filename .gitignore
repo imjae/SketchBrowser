@@ -8,3 +8,7 @@ test-results/
 .env*.local
 /android/
 /ios/
+/tests/android/.gradle/
+/tests/android/.kotlin/
+/tests/android/build/
+/tests/android/local.properties
