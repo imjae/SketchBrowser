@@ -1,21 +1,8 @@
 name: Android test APK
 
 on:
+  # Build an app package only after an explicit user request.
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/android-apk.yml'
-      - 'App.tsx'
-      - 'src/**'
-      - 'plugins/**'
-      - 'assets/**'
-      - 'scripts/collect-apk.mjs'
-      - 'app.json'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - '.npmrc'
 
 permissions:
   contents: read
@@ -71,6 +58,11 @@ jobs:
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)
           test -n "$SDKMANAGER"
           "$SDKMANAGER" 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+
+      - name: Test raw Android and Samsung stylus input
+        run: |
+          chmod +x android/gradlew
+          ./android/gradlew -p tests/android testDebugUnitTest --no-daemon --max-workers=2
 
       - name: Build standalone APK for Android tablets
         working-directory: android
