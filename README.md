@@ -2,6 +2,8 @@
 
 웹페이지 위에 손글씨, 밑줄, 형광펜을 남기고 페이지별로 저장하는 Android 태블릿 브라우저의 첫 버전입니다. React Native + Expo + 네이티브 WebView로 만들었습니다. iPad용 화면과 필기·저장 로직도 같은 코드를 재사용하도록 구성했지만, 현재 검증 대상은 Android입니다.
 
+[기능 구현 표와 확장 지도](docs/feature-map.md)에서 현재 범위, 검증 상태, 코드 위치와 다음 기능 후보를 확인할 수 있습니다. **앱 빌드는 사용자가 명시적으로 요청할 때만 진행합니다.** APK 워크플로 설정은 수동 실행만 허용합니다.
+
 ## 실행하기
 
 Node.js 22.13 이상과 pnpm 11을 사용합니다.
@@ -74,11 +76,11 @@ Java 17과 Android SDK가 준비된 환경에서는 `pnpm prebuild:android` 후 
 
 ## 태블릿에 APK 설치하기
 
-[GitHub Actions의 Android test APK](https://github.com/imjae/SketchBrowser/actions/workflows/android-apk.yml)에서 최신 성공 실행을 열고, **Artifacts → SketchBrowser-android-test**를 다운로드하세요. ZIP 안의 `SketchBrowser-0.2.0-test.apk`를 태블릿으로 옮겨 실행하면 설치됩니다. 설치 화면에서 요청하는 경우 해당 파일 앱 또는 브라우저의 **이 출처 허용**을 켜 주세요.
+[GitHub Actions의 Android test APK](https://github.com/imjae/SketchBrowser/actions/workflows/android-apk.yml)에서 해당 버전의 성공 실행을 열고, **Artifacts → SketchBrowser-android-test**를 다운로드하세요. ZIP 안의 `SketchBrowser-0.2.1-test.apk`를 태블릿으로 옮겨 실행하면 설치됩니다. 설치 화면에서 요청하는 경우 해당 파일 앱 또는 브라우저의 **이 출처 허용**을 켜 주세요.
 
 이 APK는 앱 코드를 포함하므로 **Expo Go나 PC 개발 서버 없이 실행**됩니다. ARM64·ARMv7 Android 태블릿을 지원하며, 필기는 설치한 앱의 기기에 저장됩니다. 외부 웹페이지를 열 때에는 인터넷이 필요합니다. 서명은 Expo 템플릿의 테스트 키를 사용합니다.
 
-Actions는 `main`의 앱 코드 변경 시 실행되며 **Run workflow**로 수동 실행할 수도 있습니다. APK와 SHA-256 파일, 빌드 정보를 30일간 보관합니다. APK는 Git 소스에 넣지 않습니다.
+이 브랜치의 Actions는 사용자 요청을 받은 뒤 **Run workflow**로만 실행합니다. APK와 SHA-256 파일, 빌드 정보를 30일간 보관합니다. APK는 Git 소스에 넣지 않습니다. 다른 브랜치에 남은 이전 워크플로는 해당 브랜치에 변경을 반영해야 같은 규칙을 사용합니다.
 
 첫 테스트는 시작 노트에 필기 → 앱 완전히 종료 → 다시 실행해 복원 확인 → 외부 HTTPS 페이지에서 필기 순서로 진행하세요. S Pen 감도·손바닥 입력·회전 후 위치 보정은 실제 태블릿에서 확인해야 합니다.
 

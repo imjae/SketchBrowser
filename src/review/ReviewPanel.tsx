@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Modal, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { File, Paths } from 'expo-file-system';
 import { AUTHOR_ORIGIN, Transfer, transferScript } from './transfer';
@@ -12,6 +13,7 @@ export async function saveTransfer(transfer: Transfer) {
 }
 
 export function ReviewPanel({ visible, onClose }: { visible: boolean; onClose(): void }) {
+  const compact = useWindowDimensions().width < 600;
   const view = useRef<WebView>(null);
   const [pending, setPending] = useState<Transfer | null>(null);
   const [error, setError] = useState('');
@@ -24,11 +26,11 @@ export function ReviewPanel({ visible, onClose }: { visible: boolean; onClose():
   const send = () => { if (pendingRef.current) view.current?.injectJavaScript(transferScript(pendingRef.current)); };
   useEffect(() => { if (visible && pending) send(); }, [visible, pending]);
   return <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-    <View style={{flex:1,backgroundColor:'#fbfaf6',paddingTop:24}}>
-      <View style={{flexDirection:'row',alignItems:'center',padding:12,gap:16,borderBottomWidth:1,borderColor:'#ddd'}}>
-        <Pressable onPress={onClose} accessibilityRole="button"><Text style={{fontSize:16,color:'#48694f'}}>← 글로 돌아가기</Text></Pressable>
-        <Text style={{flex:1,fontWeight:'600'}}>블로그 수정 요청</Text>
-        <Pressable onPress={() => view.current?.reload()} accessibilityRole="button"><Text>새로고침</Text></Pressable>
+    <SafeAreaProvider><SafeAreaView style={{flex:1,backgroundColor:'#fbfaf6'}}>
+      <View style={{flexDirection:'row',alignItems:'center',paddingHorizontal:12,paddingVertical:4,gap:12,borderBottomWidth:1,borderColor:'#d9e1d5'}}>
+        <Pressable onPress={onClose} accessibilityRole="button" style={{minHeight:48,justifyContent:'center',paddingHorizontal:8}}><Text style={{fontSize:16,color:'#375b42'}}>← 글로 돌아가기</Text></Pressable>
+        <Text style={{flex:1,fontWeight:'600',color:'#29352d'}}>{compact ? '' : '블로그 수정 검토'}</Text>
+        <Pressable onPress={() => view.current?.reload()} accessibilityRole="button" style={{minHeight:48,justifyContent:'center',paddingHorizontal:8}}><Text style={{fontSize:16,color:'#375b42'}}>새로고침</Text></Pressable>
       </View>
       {!!error && <Text style={{padding:12,color:'#a33'}}>{error}</Text>}
       <WebView ref={view} source={{uri:`${AUTHOR_ORIGIN}/sketch/`}} style={{flex:1}}
@@ -53,6 +55,6 @@ export function ReviewPanel({ visible, onClose }: { visible: boolean; onClose():
             }
           } catch { setError('수정 요청 연결을 확인하지 못했어요. 새로고침해 주세요.'); }
         }} onError={() => setError('서버 연결을 확인해 주세요. 미전송 필기는 기기에 보관돼요.')} />
-    </View>
+    </SafeAreaView></SafeAreaProvider>
   </Modal>;
 }

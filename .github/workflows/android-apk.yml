@@ -1,22 +1,8 @@
 name: Android test APK
 
 on:
+  # Build an app package only after an explicit user request.
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/android-apk.yml'
-      - 'App.tsx'
-      - 'src/**'
-      - 'plugins/**'
-      - 'assets/**'
-      - 'scripts/collect-apk.mjs'
-      - 'tests/android/**'
-      - 'app.json'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - '.npmrc'
 
 permissions:
   contents: read

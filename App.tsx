@@ -10,6 +10,7 @@ import { useNotebook } from './src/useNotebook';
 import { Icon, IconName } from './src/ui/Icon';
 import { randomUUID } from 'expo-crypto';
 import { ReviewPanel, saveTransfer } from './src/review/ReviewPanel';
+import appConfig from './app.json';
 
 const GREEN = '#48694f';
 const COLORS = ['#315de8', '#343b37', '#d65c53', '#5f8965', '#e6bc42'];
@@ -237,7 +238,7 @@ function SketchBrowser() {
             <Text style={s.strokeCount}>{notes.strokeCount}개의 획</Text>
           </View>}
         </View>
-        {!contentFullscreen && !compact && <View style={s.workspaceFooter}><Text style={s.footerText}>A LITTLE SPACE FOR YOUR THOUGHTS.</Text><Text style={s.footerVersion}>SketchBrowser 0.1</Text></View>}
+        {!contentFullscreen && !compact && <View style={s.workspaceFooter}><Text style={s.footerText}>A LITTLE SPACE FOR YOUR THOUGHTS.</Text><Text style={s.footerVersion}>SketchBrowser {appConfig.expo.version}</Text></View>}
       </View>
       {libraryOpen && !wide && !contentFullscreen && <><Pressable accessibilityRole="button" accessibilityLabel="서재 바깥 영역 닫기" onPress={() => setLibraryOpen(false)} style={s.backdrop} />{library}</>}
       {contentFullscreen && <Pressable accessibilityRole="button" accessibilityLabel="전체화면 종료" onPress={exitFullscreen}
