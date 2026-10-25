@@ -44,7 +44,7 @@
     "review:runner": "node runner/main.mjs",
     "review:start": "node runner/launch.mjs",
     "review:stop": "node runner/launch.mjs --stop",
-    "test:review": "node --import tsx tests/review.e2e.mjs"
+    "test:review": "node --import tsx tests/review.e2e.mjs && node --import tsx tests/portfolio-review.e2e.mjs"
   },
   "packageManager": "pnpm@11.25.0"
 }

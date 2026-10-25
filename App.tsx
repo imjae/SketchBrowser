@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { BrowserSurface } from './src/browser/BrowserSurface';
@@ -10,6 +10,7 @@ import { useNotebook } from './src/useNotebook';
 import { Icon, IconName } from './src/ui/Icon';
 import { randomUUID } from 'expo-crypto';
 import { ReviewPanel, saveTransfer } from './src/review/ReviewPanel';
+import { reviewBlockReason } from './src/review/availability';
 import appConfig from './app.json';
 
 const GREEN = '#48694f';
@@ -51,8 +52,11 @@ function SketchBrowser() {
   const notes = useNotebook(browser, settings, onInputTool);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const reviewBlock = reviewBlockReason(navigation.url, navigation.loading, notes.status === 'loading');
   const captureReview = async () => {
-    if (capturing || !browser.current) return;
+    if (capturing) return;
+    if (reviewBlock) { Alert.alert('필기 전송 안내', reviewBlock.message); return; }
+    if (!browser.current) { Alert.alert('필기 전송 안내', '글 화면을 준비하고 있어요. 잠시 후 다시 눌러 주세요.'); return; }
     setCapturing(true); setPageError(null);
     try {
       const captured = await browser.current.captureReview();
@@ -195,12 +199,17 @@ function SketchBrowser() {
             </Pressable>
             <IconButton name="maximize" label="브라우저 전체화면" onPress={enterFullscreen} />
           </View>}
-          {!contentFullscreen && Platform.OS !== 'web' && <View style={{flexDirection:'row',gap:16,paddingHorizontal:16,paddingVertical:8,alignItems:'center',flexWrap:'wrap'}}>
-            <Pressable accessibilityRole="button" onPress={() => setReviewOpen(true)}><Text style={s.libraryButtonText}>수정 요청 목록</Text></Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="현재 화면의 필기로 수정 요청" onPress={captureReview}
-              disabled={capturing || navigation.loading || notes.status === 'loading' || !/^https:\/\/imjae\.github\.io\/writing\/[^/]+\/?(?:[?#].*)?$/.test(navigation.url)}>
-              <Text style={[s.libraryButtonText, {opacity:capturing?0.5:1}]}>{capturing ? '화면 준비 중…' : '현재 화면의 필기로 수정 요청'}</Text>
-            </Pressable>
+          {!contentFullscreen && Platform.OS !== 'web' && <View style={s.reviewBar}>
+            <View style={s.reviewActions}>
+              <Pressable accessibilityRole="button" onPress={() => setReviewOpen(true)} style={s.reviewButton}><Text style={s.reviewButtonText}>수정 요청 목록</Text></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="현재 화면의 필기로 수정 요청" accessibilityHint={reviewBlock?.message}
+                accessibilityState={{disabled:capturing,busy:capturing}} onPress={captureReview} disabled={capturing}
+                style={[s.reviewButton, !reviewBlock && s.reviewButtonReady, capturing && s.disabled]}>
+                <Text style={[s.reviewButtonText, !reviewBlock && s.reviewButtonReadyText]}>{capturing ? '화면 준비 중…' : '현재 화면의 필기로 수정 요청'}</Text>
+              </Pressable>
+              {reviewBlock?.code === 'unsupported-page' && <Pressable accessibilityRole="button" onPress={() => navigate('https://imjae.github.io/writing/')} style={s.reviewButton}><Text style={s.reviewButtonText}>블로그 글 목록 열기</Text></Pressable>}
+            </View>
+            {!!reviewBlock && <Text accessibilityLiveRegion="polite" style={s.reviewHint}>{reviewBlock.message}</Text>}
           </View>}
           {!contentFullscreen && !toolbarCollapsed && <View style={s.toolbar}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.toolbarContent}>
@@ -267,6 +276,11 @@ const s = StyleSheet.create({
   fullscreenMain: { padding: 0, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 }, fullscreenCard: { borderWidth: 0, borderRadius: 0, elevation: 0, shadowOpacity: 0 },
   fullscreenExit: { position: 'absolute', top: 12, right: 12, minHeight: 42, paddingHorizontal: 12, backgroundColor: '#fafcf5ed', borderWidth: 1, borderColor: '#dce4d4', borderRadius: 9, flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 40, elevation: 4 },
   addressBar: { height: 63, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, borderBottomWidth: 1, borderColor: '#e8ece2', backgroundColor: '#fff' },
+  reviewBar: { paddingHorizontal: 16, paddingVertical: 8, gap: 6, borderBottomWidth: 1, borderColor: '#e1e7d9', backgroundColor: '#f7f9f3' },
+  reviewActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
+  reviewButton: { minHeight: 48, paddingHorizontal: 12, paddingVertical: 10, justifyContent: 'center', borderRadius: 8, borderWidth: 1, borderColor: '#cbd8c5', backgroundColor: '#fff' },
+  reviewButtonReady: { backgroundColor: GREEN, borderColor: GREEN }, reviewButtonText: { fontSize: 13, fontWeight: '600', color: GREEN }, reviewButtonReadyText: { color: '#fff' },
+  reviewHint: { fontSize: 12, lineHeight: 19, color: '#53634b' },
   iconButton: { width: 38, height: 40, borderRadius: 7, alignItems: 'center', justifyContent: 'center' }, iconButtonActive: { backgroundColor: '#e6eedf' }, disabled: { opacity: 0.3 }, pressed: { opacity: 0.6 },
   addressField: { flex: 1, minWidth: 0, height: 36, borderRadius: 7, paddingLeft: 12, gap: 9, flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f5ee', borderWidth: 1, borderColor: '#e8ece1', marginHorizontal: 6 }, addressInput: { flex: 1, minWidth: 0, fontSize: 12, color: '#67745c', height: 34, padding: 0 }, goButton: { width: 35, height: 34, alignItems: 'center', justifyContent: 'center' },
   toolbar: { minHeight: 66, backgroundColor: '#fdfefa', borderBottomWidth: 1, borderColor: '#e1e7d9' }, toolbarContent: { paddingHorizontal: 16, gap: 4, alignItems: 'center', minHeight: 66 }, toolGroup: { flexDirection: 'row', alignItems: 'center', gap: 3 }, toolButton: { height: 38, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 7 }, toolButtonActive: { backgroundColor: GREEN }, toolLabel: { fontSize: 11, color: '#84907a' }, toolLabelActive: { color: '#fff' },

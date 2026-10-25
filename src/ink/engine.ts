@@ -402,6 +402,10 @@ export const INK_SCRIPT = String.raw`
     switch (command.type) {
       case 'capture':
         if (!hydrated || captureLock || !/^[a-zA-Z0-9-]{1,100}$/.test(command.nonce)) return;
+        if (document.body.dataset.sketchDirty === 'true') {
+          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({channel:'sketch-review',nonce:command.nonce,error:'직접 편집한 미저장 문구가 있어요. 변경을 저장하거나 취소한 뒤 다시 필기해 주세요.'}));
+          return;
+        }
         finish(null, false); setPenButton(false, false); draw();
         var view = window.visualViewport;
         var box = { x: view ? view.pageLeft : scrollX, y: view ? view.pageTop : scrollY,
@@ -412,7 +416,7 @@ export const INK_SCRIPT = String.raw`
           if (s.points.some(function(p) { var q = positioned(p, s, t); return q.x >= box.x && q.y >= box.y && q.x <= box.x + box.width && q.y <= box.y + box.height; })) visible.push(s);
         });
         var text = [];
-        document.querySelectorAll('article.prose h2,article.prose h3,article.prose p,article.prose li,article.prose pre,article.prose table, .article-header h1, .article-description').forEach(function(el) {
+        document.querySelectorAll('article.prose h2,article.prose h3,article.prose p,article.prose li,article.prose pre,article.prose table, .article-header h1, .article-description, main.rp-main [data-portfolio-copy]').forEach(function(el) {
           var r = el.getBoundingClientRect();
           if (r.bottom > 0 && r.top < innerHeight && r.width) text.push((el.textContent || '').trim());
         });
@@ -423,7 +427,7 @@ export const INK_SCRIPT = String.raw`
             sourceHash: annotationSourceHash, currentSourceHash: pageSourceHash(), visibleText: text.join('\n\n').slice(0,16000), strokes: visible, viewport: box } }));
         break;
       case 'captureCheck':
-        var ok = captureLock && captureLock.nonce === command.nonce && captureLock.documentId === documentId && captureLock.revision === revision &&
+        var ok = document.body.dataset.sketchDirty !== 'true' && captureLock && captureLock.nonce === command.nonce && captureLock.documentId === documentId && captureLock.revision === revision &&
           captureLock.x === scrollX && captureLock.y === scrollY && captureLock.w === innerWidth && captureLock.h === innerHeight && captureLock.scale === (window.visualViewport ? window.visualViewport.scale : 1) && captureLock.pageHeight === document.documentElement.scrollHeight && captureLock.sourceHash === pageSourceHash();
         window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ channel: 'sketch-review-check', nonce: command.nonce, ok: !!ok }));
         break;

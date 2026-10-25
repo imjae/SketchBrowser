@@ -51,6 +51,13 @@ export function canonicalArticleUrl(value: string): string {
   return `${BLOG_ORIGIN}/writing/${path[1]}/`;
 }
 
+export function canonicalReviewUrl(value: string): string {
+  const url = new URL(value);
+  requireValue(!url.username && !url.password && [BLOG_ORIGIN, 'https://imjae-blog-author.imjae-game-dev-notes.workers.dev'].includes(url.origin), '지원하는 블로그 주소가 아닙니다.');
+  if (/^\/portfolio\/krafton-2027\/?$/.test(url.pathname)) return `${BLOG_ORIGIN}/portfolio/krafton-2027/`;
+  return canonicalArticleUrl(`${BLOG_ORIGIN}${url.pathname}`);
+}
+
 export function validateTarget(target: BlogTarget): void {
   requireValue(target?.version === 1 && target.repository === BLOG_REPOSITORY, '저장소 규격을 확인해 주세요.');
   requireValue(identifier.test(target.slug) && target.canonicalUrl === `${BLOG_ORIGIN}/writing/${target.slug}/`, '글 주소가 일치하지 않습니다.');

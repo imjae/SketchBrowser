@@ -1,6 +1,7 @@
 # SketchBrowser 기능 구현 현황과 확장 지도
 
 기준일: 2026-10-25. 앱 0.2.1 구현 기준 `c71781f`, 블로그 검토 UI 기준 `8a6707d`. 후속 커밋은 검사·문서 보완을 포함한다.
+후속 작업 소스는 크래프톤 포트폴리오 지원을 추가했다. 서버 기준 `38bf66d`이며 **설치 APK 0.2.1에는 아직 없고 새 APK 빌드는 실행하지 않았다.**
 이 문서는 다음 작업을 고르고 구현 범위를 확인하는 기준표다. 기능 ID를 유지하면서 행을 추가하고, 구현 상태와 검증 결과는 따로 갱신한다.
 
 **앱 빌드는 사용자가 요청할 때만 실행한다.** 2026-10-25 UI 개선 작업에서는 사용자가 APK 빌드를 명시적으로 요청했다. 0.2.1 빌드·검토 서버 반영을 완료했으며 아래에 검증 결과를 기록했다.
@@ -64,9 +65,9 @@ PC가 꺼져 있으면 새 수정안 생성과 main 반영이 대기한다. 서�
 
 | ID | 기능 | 구현 상태 | 현재 범위·제한 | 확인한 범위 | 관련 코드 |
 | --- | --- | --- | --- | --- | --- |
-| A01 | 글 주소에서 실제 원본 찾기 | 구현 | `imjae.github.io/writing/<slug>/` 공개 Markdown 한 편. 초안·다른 도메인·포트폴리오 제외 | 원본 조회 단위 검사·실제 글 조회 | 블로그 [sketch-source.mjs](../../imjae.github.io/scripts/sketch-source.mjs) |
+| A01 | 대상 주소에서 실제 원본 찾기 | 구현 | 공개 Markdown 글 또는 크래프톤 포트폴리오의 합성 문구. 소유자 편집 주소는 공개 대상으로 정규화 | 원본 조회 단위 검사·실제 글/포트폴리오 조회. 설치 0.2.1은 글 전용 | 블로그 [sketch-target.mjs](../../imjae.github.io/scripts/sketch-target.mjs) |
 | A02 | 이미지·문맥을 이용한 AI 수정안 | 구현 | PC Codex CLI가 문장 교체 JSON 또는 질문 반환. AI에게 파일 수정·배포 도구를 제공하지 않음 | 실제 이미지 입력 AI 호출·수정안 생성. 다양한 실제 손글씨 해석은 추가 확인 필요 | [core.mjs](../runner/core.mjs), [main.mjs](../runner/main.mjs) |
-| A03 | 대상 본문만 적용·변경 범위 검사 | 구현 | 정확히 한 번 일치하는 원문 교체. 메타데이터·다른 파일·새 실행 HTML·외부 URL 추가 거절 | 교체 범위 단위 검사·격리 작업 공간에서 실제 수정 | [core.mjs](../runner/core.mjs), [main.mjs](../runner/main.mjs) |
+| A03 | 대상 문구만 적용·변경 범위 검사 | 구현 | 글은 본문 문자열 교체. 포트폴리오는 기존 키·원문이 일치하는 600자 이하 문구를 새 JSON 한 개로 저장. 메타데이터·다른 파일·HTML·새 외부 URL 거절 | 교체 범위 단위 검사·격리 작업 공간에서 실제 AI 글/포트폴리오 수정 | [core.mjs](../runner/core.mjs), [main.mjs](../runner/main.mjs), 블로그 [sketch-portfolio.server.mjs](../../imjae.github.io/src/lib/sketch-portfolio.server.mjs) |
 | A04 | 블로그 빌드·사이트·화면 검사 | 구현 | 전체 사이트 검사, 보호된 편집 빌드, 수정 글·Home·긴 글·모바일 검색 검사 | 실제 AI 수정안에 검사 수행 | [main.mjs](../runner/main.mjs), [preview.mjs](../runner/preview.mjs) |
 | V01 | 변경 비교·글 미리보기 | 구현 | 실제 빌드의 정적 HTML. CSS·렌더된 도표 포함, 영상·스크립트·페이지 이동 제외 | 실제 수정 미리보기의 데스크톱·모바일 표시 및 sandbox 자동 검사 | [preview.mjs](../runner/preview.mjs), 블로그 [sketch-ui.mjs](../../imjae.github.io/server/sketch-ui.mjs) |
 | V02 | 사용자 승인 | 구현 | 확인 체크박스 후 승인. 해당 세대·커밋·미리보기·diff에 묶임. 24시간 유효 | 무승인·오래된 승인 거절 및 UI 자동 검사. 실제 글에 대한 사용자 승인은 아직 없음 | 블로그 [sketch-review.mjs](../../imjae.github.io/server/sketch-review.mjs), [sketch-ui.mjs](../../imjae.github.io/server/sketch-ui.mjs) |
@@ -88,7 +89,7 @@ PC가 꺼져 있으면 새 수정안 생성과 main 반영이 대기한다. 서�
 | ID | 화면·사용 경험 | 현재 UI | 다음 개선·완료 기준 | 관련 위치 |
 | --- | --- | --- | --- | --- |
 | U01 | 읽기·필기 | 크림색·초록색 중심. 넓은 화면은 왼쪽 서재, 좁은 화면은 서랍. 상단 도구막대 접기·전체화면, 하단 저장 상태 제공 | Galaxy Tab 가로·세로에서 글 영역과 도구 크기를 확인하고, 손가락·펜으로 도구를 쉽게 선택할 수 있는지 검증 | B02, N01~N05, [App.tsx](../App.tsx) |
-| U02 | 수정 요청 진입 | Android에서 `수정 요청 목록`, `현재 화면의 필기로 수정 요청` 제공. 대상 글·로딩 상태에 따라 전송 버튼 비활성화 | 비활성 이유를 표시하고, 미전송 필기·검토 대기 요청을 진입 버튼에서 알아볼 수 있게 표시. 현재는 캡처 중일 때만 버튼 글자 투명도가 바뀜 | R01~R03, [App.tsx](../App.tsx) |
+| U02 | 수정 요청 진입 | 일부 구현: 글·크래프톤 포트폴리오 지원. 대상 밖 화면·로딩·복원 이유 표시, 눌렀을 때 안내, 공개 글 목록 이동 제공 | 타입·단위 23개 검사 통과. 새 APK 미빌드로 설치 0.2.1에는 확장·안내가 없음. 미전송·검토 대기 배지는 남음 | R01~R03, [App.tsx](../App.tsx), [availability.ts](../src/review/availability.ts) |
 | U03 | 캡처 확인·전송 | 전체화면 검토 창에서 소유자 로그인 후 캡처 이미지·설명 입력·전송 취소 제공 | 처음 로그인하는 흐름에서도 캡처가 보관됐음을 안내. 대상 글·보내는 화면을 확인하고 전송 완료를 분명히 알 수 있도록 정리 | R01~R04, [ReviewPanel.tsx](../src/review/ReviewPanel.tsx), 블로그 [sketch-ui.mjs](../../imjae.github.io/server/sketch-ui.mjs) |
 | U04 | 요청 목록·진행 상태 | 상태와 제목을 버튼 목록으로 표시. PC 연결 여부·작업 상태를 8초마다 갱신. 선택한 상세가 같은 페이지에 표시됨 | `접수 → 수정·검사 → 검토 대기 → 배포 → 완료` 단계 표시. PC 대기와 오류를 구분하고, 사용자가 지금 해야 할 행동을 함께 안내 | R05, O01, 블로그 [sketch-ui.mjs](../../imjae.github.io/server/sketch-ui.mjs) |
 | U05 | 변경 내용·미리보기 | 구현: 변경 비교·글 미리보기·보낸 필기 탭. 900px 이상은 수정 전후 나란히, 좁은 화면은 전환. 변경 위치 선택·이전/다음 제공. 원본 diff는 접힌 상세. 미리보기는 독립 스크롤 영역 | 브라우저의 가로·세로·좁은 화면 검사 통과. 실제 Galaxy Tab에서 회전·펜 조작 확인은 남음. Markdown 문법은 평문으로 보존하며 렌더된 글은 미리보기에서 확인 | V01, 블로그 [sketch-ui-client.mjs](../../imjae.github.io/server/sketch-ui-client.mjs), [sketch-diff.mjs](../../imjae.github.io/server/sketch-diff.mjs) |
@@ -110,6 +111,23 @@ PC가 꺼져 있으면 새 수정안 생성과 main 반영이 대기한다. 서�
 | 병행 | U01·U09·U10 공통 UI와 실물 확인 | 읽기·필기·검토 화면이 일관되고 태블릿에서 편하게 조작되는지 |
 
 검토 UI는 실제 서버 처리 코드와 메모리 테스트 요청으로 브라우저 검사했다. Worker 배포용 번들에서도 같은 검사를 수행했다. 예제 수정안만 사용했으며 실제 공개 글을 승인·게시한 검사는 아니다. 실제 Galaxy Tab의 새 로그인·필기 전송·승인 사용성 확인은 남아 있다.
+
+### 0.2.1 실사용 진입 문제 점검
+
+사용자가 `/portfolio/krafton-2027/?edit=1`에서 전송 버튼의 무반응을 보고했다. 현재 지원 대상은 공개 `/writing/<slug>/` 본문이므로 포트폴리오는 전송되지 않는다. `?edit=1` 자체는 공개 글의 전송을 막지 않는다. 기존 UI는 이유를 표시하지 않은 채 클릭만 비활성화했다.
+
+최초 진단 뒤 대상·로딩 상태 안내를 추가했다. 이어 사용자 요청으로 아래 포트폴리오 지원을 구현했다. 현재 설치된 0.2.1은 공개 글 전용이며, 확장 소스의 새 APK는 별도 빌드 요청 때 만든다.
+
+### 포트폴리오 필기 수정 확장
+
+| ID | 기능 | 구현 상태 | 범위·확인 결과 | 관련 코드 |
+| --- | --- | --- | --- | --- |
+| P01 | 공개·편집 주소의 포트폴리오 캡처 | 구현 | `/portfolio/krafton-2027/`와 고정 소유자 origin 지원. 쿼리·fragment 정규화, 표시 문구 문맥·합성 원문 해시 사용. 설치 0.2.1 미포함 | [contract.ts](../src/review/contract.ts), [engine.ts](../src/ink/engine.ts), 블로그 [sketch-target.mjs](../../imjae.github.io/server/sketch-target.mjs) |
+| P02 | 미저장 직접 편집 감지 | 구현 | 미저장 문구가 있으면 캡처 거절. 캡처 중 직접 편집이 생겨도 일관성 검사 실패. 브라우저 검사 통과 | [engine.ts](../src/ink/engine.ts), 블로그 [portfolio-copy-editor.ts](../../imjae.github.io/src/scripts/portfolio-copy-editor.ts) |
+| P03 | 문구 키 기반 AI 수정·비교 | 구현 | 기존 키·원문 확인 후 새 JSON 한 개만 추가. 기본 문구·기존 기록·영상·순서 보존. 실제 AI 한 문구 시험 수정·전체 사이트 검사·미리보기 생성 통과. 문구별 전후 비교 제공 | 블로그 [sketch-portfolio.server.mjs](../../imjae.github.io/src/lib/sketch-portfolio.server.mjs), [main.mjs](../runner/main.mjs) |
+| P04 | 포트폴리오 승인·배포 버전 확인 | 구현 | 기존 승인·경쟁 main 검사에 파일/합성 문구 해시와 양쪽 배포 확인 연결. 메모리 요청 승인, 실제 격리 결과 검증·변조/무승인 거절 통과. 실제 소유자 승인 배포는 검증 대기 | [main.mjs](../runner/main.mjs), 블로그 [sketch-review.mjs](../../imjae.github.io/server/sketch-review.mjs) |
+
+앱 타입·단위 23개, 블로그 전체 검사 114개·Astro 오류 0개·128개 HTML 검사, 보호된 빌드, 실제 Worker 번들의 글/포트폴리오 검토 E2E를 통과했다. 실제 AI 시험 커밋은 격리 작업 공간의 `9abb016`이며 공개하지 않았다. 기본 문구와 공개 포트폴리오는 그대로다. 서버 `38bf66d`의 Pages·편집 Worker 배포 성공과 공개/편집 원문 해시 일치를 확인하고 PC 실행기를 새 코드로 재시작했다. 새 APK 빌드·실물 태블릿 확인은 수행하지 않았다.
 
 ## 확장할 때 바꿀 위치
 

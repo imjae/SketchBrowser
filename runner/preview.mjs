@@ -4,7 +4,9 @@ import { resolve, join, extname } from 'node:path';
 import { chromium } from '@playwright/test';
 import { inside } from './core.mjs';
 
-export async function verifyAndPreview({root,slug,afterHash,dataDir}) {
+export async function verifyAndPreview({root,slug,path:targetPath,kind='article',afterHash,dataDir}) {
+  targetPath ||= `/writing/${slug}/`;
+  const contentSelector=kind==='portfolio'?'main.rp-main':'article.prose';
   const dist=join(root,'dist');
   const types={'.html':'text/html','.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.woff2':'font/woff2','.json':'application/json'};
   const server=createServer(async(req,res)=>{try{const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);const file=inside(dist,resolve(dist,'.'+pathname+(pathname.endsWith('/')?'index.html':'')));res.setHeader('Content-Type',types[extname(file)]||'application/octet-stream');res.end(await readFile(file));}catch{res.statusCode=404;res.end();}});
@@ -15,10 +17,10 @@ export async function verifyAndPreview({root,slug,afterHash,dataDir}) {
     const page=await browser.newPage({viewport:{width:1280,height:900}});
     const home=await page.goto(origin+'/');if(home.status()!==200)throw new Error('Home 미리보기 실패');
     if(await page.locator('a[href^="/writing/"]').count()<1)throw new Error('Home 글 목록 확인 실패');
-    const article=await page.goto(origin+`/writing/${slug}/`);if(article.status()!==200)throw new Error('수정한 글 미리보기 실패');
-    await page.locator('article.prose').waitFor();
+    const article=await page.goto(origin+targetPath);if(article.status()!==200)throw new Error('수정한 대상 미리보기 실패');
+    await page.locator(contentSelector).waitFor();
     if(await page.locator('link[rel="stylesheet"]').count()<1 || !await page.evaluate(()=>[...document.styleSheets].some(sheet=>sheet.href?.includes('/_astro/') && sheet.cssRules.length>0)))throw new Error('블로그 스타일을 불러오지 못했습니다.');
-    if(await page.locator('article.prose').getAttribute('data-sketch-source')!==afterHash)throw new Error('미리보기와 수정 원본 버전이 다릅니다.');
+    if(await page.locator(contentSelector).getAttribute('data-sketch-source')!==afterHash)throw new Error('미리보기와 수정 원본 버전이 다릅니다.');
     if(await page.locator('.mermaid-diagram').count())await page.waitForFunction(()=>[...document.querySelectorAll('.mermaid-diagram')].every(el=>el.querySelector('svg')),null,{timeout:30000});
     await page.screenshot({path:join(dataDir,'preview-desktop.png'),fullPage:true});
     const styles=[];

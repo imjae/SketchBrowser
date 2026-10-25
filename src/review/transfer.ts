@@ -1,5 +1,5 @@
 import { Stroke, validStrokes } from '../model';
-import { canonicalArticleUrl } from './contract';
+import { canonicalReviewUrl } from './contract';
 
 export const AUTHOR_ORIGIN = 'https://imjae-blog-author.imjae-game-dev-notes.workers.dev';
 export type CaptureContext = {
@@ -20,7 +20,7 @@ export function parseCapture(raw: string, nonce: string, url: string): CaptureCo
     if (value.channel !== 'sketch-review' || value.nonce !== nonce) return null;
     if (value.error) throw new Error(value.error);
     const c = value.context;
-    if (!c || canonicalArticleUrl(c.url) !== canonicalArticleUrl(url) ||
+    if (!c || canonicalReviewUrl(c.url) !== canonicalReviewUrl(url) ||
       typeof c.documentId !== 'string' || c.documentId.length > 100 || !Number.isSafeInteger(c.revision) || c.revision < 0 ||
       typeof c.title !== 'string' || c.title.length > 300 || typeof c.visibleText !== 'string' || !c.visibleText.trim() || c.visibleText.length > 16000 ||
       !(c.sourceHash === null || /^[a-f0-9]{64}$/.test(c.sourceHash)) || !validStrokes(c.strokes) || !c.strokes.length) return null;

@@ -40,7 +40,7 @@ export const BrowserSurface = forwardRef<BrowserHandle, BrowserProps>(function B
         const context = await ask('capture', (raw, url) => {
           const value = parseCapture(raw, nonce, url);
           if (!value) { let m; try { m = JSON.parse(raw); } catch { return null; }
-            if (m.channel === 'sketch-review' && m.nonce === nonce) throw new Error('화면에 원문과 필기가 함께 보이도록 이동한 뒤 다시 시도해 주세요.'); }
+            if (m.channel === 'sketch-review' && m.nonce === nonce) throw new Error(typeof m.error === 'string' && m.error.length <= 500 ? m.error : '화면에 원문과 필기가 함께 보이도록 이동한 뒤 다시 시도해 주세요.'); }
           return value;
         });
         if (!context.currentSourceHash) throw new Error('글 버전을 확인할 수 없어요. 페이지를 새로고침해 주세요.');
