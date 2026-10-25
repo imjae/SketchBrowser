@@ -1,9 +1,9 @@
 # SketchBrowser 기능 구현 현황과 확장 지도
 
-기준일: 2026-10-25. 앱 구현 기준 `1fb7cb8`, 블로그 연동 기준 `03a6aef`.
+기준일: 2026-10-25. 앱 0.2.1 구현 기준 `c71781f`, 블로그 검토 UI 기준 `8a6707d`. 후속 커밋은 검사·문서 보완을 포함한다.
 이 문서는 다음 작업을 고르고 구현 범위를 확인하는 기준표다. 기능 ID를 유지하면서 행을 추가하고, 구현 상태와 검증 결과는 따로 갱신한다.
 
-**앱 빌드는 사용자가 요청할 때만 실행한다.** 2026-10-25 UI 개선 작업에서는 사용자가 APK 빌드를 명시적으로 요청했다. 0.2.1 빌드·서버 반영 결과는 아래 검증 기록에 따로 갱신한다.
+**앱 빌드는 사용자가 요청할 때만 실행한다.** 2026-10-25 UI 개선 작업에서는 사용자가 APK 빌드를 명시적으로 요청했다. 0.2.1 빌드·검토 서버 반영을 완료했으며 아래에 검증 결과를 기록했다.
 
 ## 상태 읽는 방법
 
@@ -43,7 +43,7 @@ PC가 꺼져 있으면 새 수정안 생성과 main 반영이 대기한다. 서�
 | B01 | 주소·검색·앞뒤 이동·새로고침 | 구현 | 외부 웹 탐색은 Android WebView. 웹 데모는 연습 페이지 중심 | 브라우저 자동 검사 | [App.tsx](../App.tsx), [BrowserSurface.tsx](../src/browser/BrowserSurface.tsx), [urls.ts](../src/urls.ts) |
 | B02 | 도구 접기·전체화면·화면 크기 대응 | 구현 | 전체화면 복귀 시 페이지·필기 유지 | 브라우저 자동 검사 | [App.tsx](../App.tsx) |
 | N01 | 펜·밑줄·형광펜·지우개 | 구현 | 색·굵기·압력 지원. 지우개는 획 전체 삭제 | 브라우저·네이티브 입력 자동 검사 | [engine.ts](../src/ink/engine.ts), [model.ts](../src/model.ts) |
-| N02 | S Pen 버튼 임시 지우기 | 구현 | 버튼을 누르는 동안 지우개 유지, 놓으면 이전 도구 복귀. 호버만으로는 지우지 않음 | 이전 APK에서 사용자 실물 확인 + 입력 자동 검사. 0.2.0 실물 재확인은 별개 | [SketchStylusInput.kt](../plugins/android/SketchStylusInput.kt), [engine.ts](../src/ink/engine.ts) |
+| N02 | S Pen 버튼 임시 지우기 | 구현 | 버튼을 누르는 동안 지우개 유지, 놓으면 이전 도구 복귀. 호버만으로는 지우지 않음 | 이전 APK에서 사용자 실물 확인 + 입력 자동 검사. 0.2.1 실물 재확인은 별개 | [SketchStylusInput.kt](../plugins/android/SketchStylusInput.kt), [engine.ts](../src/ink/engine.ts) |
 | N03 | 펜만 입력·두 손가락 탐색 전환 | 구현 | 같은 방향 드래그로 탐색 전환. 모든 기기의 손바닥 차단을 보장하는 기능은 아님 | 브라우저·입력 패킷 자동 검사 | [engine.ts](../src/ink/engine.ts) |
 | N04 | 실행 취소·다시 실행 | 구현 | 획과 당시 원문 해시를 함께 복원 | 기존 획 복원 자동 검사, 해시 복원 코드 확인 | [engine.ts](../src/ink/engine.ts) |
 | N05 | URL별 저장·복원·서재 | 구현 | 기기 로컬 저장, 저장 실패 재시도. 기기 간 동기화 없음 | 저장소 단위·브라우저 자동 검사 | [notebook.ts](../src/storage/notebook.ts), [useNotebook.ts](../src/useNotebook.ts) |
@@ -79,7 +79,7 @@ PC가 꺼져 있으면 새 수정안 생성과 main 반영이 대기한다. 서�
 | --- | --- | --- | --- | --- | --- |
 | O01 | PC 실행기 시작·중지·연결 복구 | 구현 | 숨겨진 프로세스, DPAPI 자격 증명, 개인 작업 폴더. 재부팅 후 수동 시작 | 실제 시작·중지·재연결 확인 | [setup.mjs](../runner/setup.mjs), [launch.mjs](../runner/launch.mjs), [start.ps1](../runner/start.ps1) |
 | O02 | 요청 용량·보관 기간 제한 | 구현 | 요청 100개, 이미지 base64 4MB, 설명 4,000자. 완료·폐기·실패 자료 30일 정리. PC 자료 자동 정리는 없음 | 용량·분할 파일 해시 검사. 30일 운영 경과 확인은 아님 | 블로그 [sketch-protocol.mjs](../../imjae.github.io/server/sketch-protocol.mjs), [sketch-review.mjs](../../imjae.github.io/server/sketch-review.mjs) |
-| O03 | 요청할 때만 앱 빌드 | 설정 변경 | 프로젝트 규칙에 명시. APK 워크플로에서 push 트리거 제거, 수동 실행만 남김 | 이번에는 설정 정적 확인만 수행. 현재 작업 브랜치의 미커밋 변경이며 원격 main 반영 전에는 원격 규칙이 바뀌지 않음 | [AGENTS.md](../AGENTS.md), [android-apk.yml](../.github/workflows/android-apk.yml) |
+| O03 | 요청할 때만 앱 빌드 | 설정 변경 | 프로젝트 규칙에 명시. 현재 작업 브랜치와 원격 main의 APK 워크플로는 수동 실행만 사용 | 작업 브랜치 `c71781f`, main `fcf57b4` 반영. 0.2.1은 사용자 요청에 따른 workflow_dispatch 실행 | [AGENTS.md](../AGENTS.md), [android-apk.yml](../.github/workflows/android-apk.yml) |
 
 ## UI/UX 구현 현황과 개선 기준
 
@@ -167,7 +167,15 @@ flowchart TD
 
 앱 저장소는 `D:/dev/SketchBrowser`, 블로그 저장소는 `D:/dev/imjae.github.io`다. 위 코드 링크는 두 저장소가 나란히 있는 현재 배치를 기준으로 한다.
 
-직전 구현 작업에서 앱 타입·단위 검사 18개, 기존 브라우저 E2E 4개 스크립트와 검토 흐름 E2E, Android 입력 검사, 블로그 검사 93개 및 실제 AI 시험 수정·미리보기 검사를 수행했다. 기존 S Pen 수정은 사용자가 잘 된다고 확인했다. 이 문서 작성에서는 그 검사를 다시 실행하거나 앱을 빌드하지 않는다.
+최초 연동 구현에서 앱 타입·단위 검사 18개, 기존 브라우저 E2E 4개 스크립트와 검토 흐름 E2E, Android 입력 검사, 블로그 검사 93개 및 실제 AI 시험 수정·미리보기 검사를 수행했다. 기존 S Pen 수정은 사용자가 잘 된다고 확인했다. 이번 UI 개선의 확인 범위는 아래와 같다.
+
+### 0.2.1 UI 개선 검증·배포
+
+- 앱 타입 검사·단위 18개, 블로그 `npm run verify` 테스트 96개·Astro 오류 0개·122개 경로·128개 HTML 검사와 보호된 편집 빌드를 통과했다. Home·긴 글·모바일 검색도 확인했다.
+- 검토 E2E는 실제 처리 코드와 메모리 요청으로 1280×800·800×1280·1024×600·390×844 배치, 800×420 입력 화면, 변경 이동·전후 전환·고정 승인 영역·sandbox를 확인했다. 실패 후 입력 유지, 재수정 후 승인 초기화와 새 결과 승인도 확인했다. Worker의 실제 배포용 번들로도 통과했다.
+- [APK 수동 빌드](https://github.com/imjae/SketchBrowser/actions/runs/40165495721)가 성공했다. 앱 소스는 `c71781f38282c8dd074afd1c650d70cb6dcf6d21`, 버전 `0.2.1`, versionCode `7`, 패키지 `com.sketchbrowser.app`이다. Android/Samsung 입력 검사, APK v2 서명 검사, ARM64·ARMv7 라이브러리와 내장 JS 번들을 확인했다.
+- 받은 APK는 `dist/apk/0.2.1/SketchBrowser-0.2.1-test.apk`, 40,548,130 bytes다. SHA-256 `58e55b07083bf692da6c8246dd2422672f01e51a506e8d23237f29dcdcc7e912`가 빌드 산출물 기록과 일치한다. 테스트 키 서명이며 실물 설치·조작은 별도 확인 대상이다.
+- 블로그 `8a6707dbee4fd77f08258293c4985b5bfa22ae2f`의 [검토 서버](https://github.com/imjae/imjae.github.io/actions/runs/40165588943)·[Pages](https://github.com/imjae/imjae.github.io/actions/runs/40165588966) 배포가 성공했다. 비로그인 검토 HTML은 로그인으로 이동하고 API는 401이다. 공개 예시 글의 원문 해시와 관리 UI 제외를 확인했다. 공개 글 본문 변경이나 실제 사용자 요청의 승인 배포는 수행하지 않았다.
 
 HTTP 입력은 앱의 [transfer.ts](../src/review/transfer.ts)와 블로그의 [sketch-protocol.mjs](../../imjae.github.io/server/sketch-protocol.mjs), 운영 상태 전이는 [sketch-review.mjs](../../imjae.github.io/server/sketch-review.mjs)가 기준이다. `contract.ts`의 `RevisionRequest`와 `workflow.ts`는 초기 설계의 참조 모델이다. 확장할 때 이 참조 모델만 바꾸고 실제 앱·서버 계약을 그대로 두지 않도록 주의한다.
 
