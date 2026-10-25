@@ -32,13 +32,16 @@ try {
 
   // The real owner UI and real storage/state code, using only in-memory test identity.
   const f=fixture();
+  let failRevision=false;
   await page.route('https://author.test/**',async route=>{
     const r=route.request();const headers=r.headers();
+    if(failRevision&&r.url().endsWith('/revise')){failRevision=false;await route.fulfill({status:503,json:{error:'시험 연결 실패'}});return;}
     if(r.method()==='POST')headers.origin='https://author.test';
     const response=bundledPage && new URL(r.url()).pathname==='/sketch/' ? bundledPage() : await handleSketchRequest(new Request(r.url(),{method:r.method(),headers,body:r.postData()||undefined}),f.env,{ownerId:'37284282'});
     await route.fulfill({status:response.status,headers:Object.fromEntries(response.headers),body:Buffer.from(await response.arrayBuffer())});
   });
   await page.addInitScript(()=>{window.nativeMessages=[];window.ReactNativeWebView={postMessage:raw=>{const m=JSON.parse(raw);window.nativeMessages.push(m);if(m.type==='sketch-save')setTimeout(()=>window.sketchPersisted(m.id),0);}};});
+  await page.clock.install();
   await page.goto('https://author.test/sketch/');
   const input=submission();input.context.currentSourceHash=input.context.sourceHash;
   await page.evaluate(value=>window.receiveSketchCapture(value),input);
@@ -70,7 +73,6 @@ try {
   await expect(page.getByText('문장을 간결하게 다듬고 마지막 설명을 정리했습니다.',{exact:true})).toBeVisible();
   assert.equal(await page.locator('details').first().getAttribute('open'),null);
   await page.getByRole('tab',{name:'변경 비교',exact:true}).click();
-  await page.clock.install();
   await page.getByRole('button',{name:'추가 수정 요청',exact:true}).click();
   await page.getByLabel('추가 수정 요청',{exact:true}).fill('두 번째 문장은 원래 표현을 유지해 주세요.');
   const saved = await f.storage.get('job:'+input.id);saved.updatedAt+=5000;await f.storage.put('job:'+input.id,saved);
@@ -97,6 +99,26 @@ try {
   await expect(page.getByLabel('추가 수정 요청',{exact:true})).toHaveValue('두 번째 문장은 원래 표현을 유지해 주세요.');
   await page.getByRole('button',{name:'검토로 돌아가기',exact:true}).click();
   await page.getByRole('checkbox').check();await expect(approve).toBeEnabled();
+  // A failed retry keeps feedback. A successful retry invalidates confirmation,
+  // and the next generated review must be confirmed separately.
+  await page.getByRole('button',{name:'추가 수정 요청',exact:true}).click();
+  failRevision=true;
+  await page.getByRole('button',{name:'이 설명으로 다시 수정',exact:true}).click();
+  await expect(page.getByRole('alert')).toHaveText('시험 연결 실패');
+  await expect(page.getByLabel('추가 수정 요청',{exact:true})).toHaveValue('두 번째 문장은 원래 표현을 유지해 주세요.');
+  await page.getByRole('button',{name:'이 설명으로 다시 수정',exact:true}).click();
+  await expect(page.locator('#detail .status')).toHaveText('PC 연결 대기');
+  await expect(page.locator('#detail')).not.toHaveAttribute('aria-busy','true');
+  await expect(approve).toHaveCount(0);
+  assert.equal((await f.storage.get('job:'+input.id)).review,undefined);
+  const revisionClaim=await f.claim();
+  const revised=await f.call('/api/sketch/runner/jobs/'+input.id+'/result',{runner:true,body:{lease:revisionClaim.lease.token,kind:'ready',preview:'<!doctype html><h1>다시 수정한 글</h1>',review:{generation:2,baseCommit:'b'.repeat(40),headCommit:'e'.repeat(40),sourceHash:'a'.repeat(64),afterHash:'f'.repeat(64),summary:'두 번째 문장을 유지했습니다.',diff:'-원문\n+다시 수정한 문장',checks:{verify:true,authoring:true,browser:true}}}});
+  assert.equal(revised.status,200);
+  await page.clock.runFor(8100);
+  await expect(page.locator('#detail .status')).toHaveText('검토 대기');
+  await expect(page.getByRole('checkbox')).not.toBeChecked();
+  await expect(approve).toBeDisabled();
+  await page.getByRole('checkbox').check();
   await page.screenshot({path:'test-results/review/owner-review.png',fullPage:true});
   const originalFetch=globalThis.fetch;
   try {globalThis.fetch=async()=>Response.json({object:{sha:'b'.repeat(40)}});await approve.click();await expect(page.locator('#detail .status')).toHaveText('승인·배포 대기');}
