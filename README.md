@@ -43,7 +43,7 @@ pnpm web
 
 Android에서 공개 글에 필기한 뒤 **현재 화면의 필기로 수정 요청**을 누르면 소유자 GitHub 로그인 화면으로 연결됩니다. 캡처와 설명을 전송하고 PC 실행기가 만든 변경 비교·미리보기를 확인합니다. **승인하고 배포**를 눌러야 실제 블로그에 반영합니다. [사용법과 PC 실행기 설정](docs/blog-review-flow.md)을 참고하세요.
 
-후속 앱 소스는 크래프톤 포트폴리오의 기존 표시 문구도 지원합니다. 공개·소유자 편집 주소와 `?edit=1`을 같은 대상으로 처리하며, 문구별 JSON 기록·실제 미리보기·승인 배포를 사용합니다. 직접 편집한 미저장 변경은 먼저 저장하거나 취소해야 합니다. 배포 APK 0.2.1에는 이 확장이 없으며 새 앱 빌드는 별도 요청 시에만 진행합니다.
+APK 0.2.2부터 크래프톤 포트폴리오의 기존 표시 문구도 지원합니다. 공개·소유자 편집 주소와 `?edit=1`을 같은 대상으로 처리하며, 문구별 JSON 기록·실제 미리보기·승인 배포를 사용합니다. 직접 편집한 미저장 변경은 먼저 저장하거나 취소해야 합니다. 이전 APK 0.2.1은 글 전용입니다. 앱 빌드는 사용자 요청 시에만 진행합니다.
 
 `pnpm review:setup`으로 서버 연결을 설정하고 `pnpm review:start`로 PC 실행기를 시작합니다. Windows 재부팅 후에는 다시 실행해야 합니다. 수정 요청·미리보기·승인은 기존 보호된 Worker에 저장됩니다. 일반 웹 필기는 계속 기기에만 저장됩니다.
 
@@ -78,7 +78,7 @@ Java 17과 Android SDK가 준비된 환경에서는 `pnpm prebuild:android` 후 
 
 ## 태블릿에 APK 설치하기
 
-[GitHub Actions의 Android test APK](https://github.com/imjae/SketchBrowser/actions/workflows/android-apk.yml)에서 해당 버전의 성공 실행을 열고, **Artifacts → SketchBrowser-android-test**를 다운로드하세요. ZIP 안의 `SketchBrowser-0.2.1-test.apk`를 태블릿으로 옮겨 실행하면 설치됩니다. 설치 화면에서 요청하는 경우 해당 파일 앱 또는 브라우저의 **이 출처 허용**을 켜 주세요.
+[0.2.2 APK 빌드](https://github.com/imjae/SketchBrowser/actions/runs/40466825257)에서 **Artifacts → SketchBrowser-android-test**를 다운로드하세요. ZIP 안의 `SketchBrowser-0.2.2-test.apk`를 태블릿으로 옮겨 실행하면 설치됩니다. 설치 화면에서 요청하는 경우 해당 파일 앱 또는 브라우저의 **이 출처 허용**을 켜 주세요.
 
 이 APK는 앱 코드를 포함하므로 **Expo Go나 PC 개발 서버 없이 실행**됩니다. ARM64·ARMv7 Android 태블릿을 지원하며, 필기는 설치한 앱의 기기에 저장됩니다. 외부 웹페이지를 열 때에는 인터넷이 필요합니다. 서명은 Expo 템플릿의 테스트 키를 사용합니다.
 
