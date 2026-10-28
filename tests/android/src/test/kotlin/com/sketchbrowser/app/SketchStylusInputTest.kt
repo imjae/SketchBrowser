@@ -1,6 +1,7 @@
 package com.sketchbrowser.app
 
 import android.app.Activity
+import android.graphics.Rect
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
@@ -97,7 +98,12 @@ class SketchStylusInputTest {
     val count = view.packets.size
     assertFalse(touch(MotionEvent.ACTION_DOWN))
     assertEquals(count, view.packets.size)
-    assertTrue(touch(MotionEvent.ACTION_DOWN, 400f))
+    // Keep the outside point inside the emulator's visible display. The
+    // 1000px fixture layout can be clipped by its default display width.
+    val visible = Rect()
+    assertTrue(view.getGlobalVisibleRect(visible))
+    assertTrue("Outside-overlay sample must remain on screen: $visible", visible.contains(50, 300))
+    assertTrue(touch(MotionEvent.ACTION_DOWN, 50f))
   }
 
   @Test fun samsungButtonContactStartsMovesAndEndsAnEraseStream() {
