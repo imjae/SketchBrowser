@@ -1,9 +1,9 @@
 # SketchBrowser 기능 구현 현황과 확장 지도
 
-기준일: 2026-10-28. 필기 비트맵 직접 합성과 손글씨 질문 우선 해석에 이어 **전체화면 접이식 펜 도구함·하단 화면 전환·작은 이동식 답변 카드**를 구현했다. 타입·단위 33개·브라우저 회귀 검사를 통과했다. Android 전용 테스트는 Java 실행 환경이 없어 실행하지 못했다. 새 앱 변경은 APK 미포함이며 이번 작업에서 앱을 빌드하지 않았다. 마지막 배포 APK는 `3958ef2` 소스의 **0.2.4(versionCode 10)**이며 실물 기기 확인은 남아 있다.
+기준일: 2026-10-28. 필기 비트맵 직접 합성과 **전체화면 접이식 펜 도구함·하단 화면 전환·작은 이동식 답변 카드**를 포함한 **0.2.5(versionCode 11)** APK를 빌드하고 다운로드 검증했다. 소스는 `2cf98c7`이며 CI 타입·단위 33개·Android 입력 7개·네이티브 빌드·APK v2 서명 검사를 통과했다. 실물 Galaxy Tab의 업데이트 설치·캡처·카드 조작 확인은 남아 있다.
 이 문서는 다음 작업을 고르고 구현 범위를 확인하는 기준표다. 기능 ID를 유지하면서 행을 추가하고, 구현 상태와 검증 결과는 따로 갱신한다.
 
-후속 사용자 요청 “빌드하고 링크줘”에 따라 위 변경을 포함한 **0.2.5(versionCode 11)** 수동 APK 빌드를 진행한다. CI Android 입력 검사·패키지·다운로드 검증이 끝나면 아래에 결과를 기록한다.
+사용자 요청 “빌드하고 링크줘”에 따라 수동 워크플로를 실행했다. [0.2.5 APK 다운로드](https://github.com/imjae/SketchBrowser/actions/runs/40656212037/artifacts/12802102884)의 ZIP에 `SketchBrowser-0.2.5-test.apk`가 있으며 이전 앱과 같은 서명으로 업데이트할 수 있다.
 
 **앱 빌드는 사용자가 요청할 때만 실행한다.** 2026-10-28 사용자가 질문 기능을 포함한 APK와 다운로드 링크를 명시적으로 요청했다. 이전 0.2.1·0.2.2 검증 기록은 아래에 유지한다.
 
@@ -50,7 +50,7 @@ PC가 꺼져 있으면 새 수정안 생성과 main 반영이 대기한다. 서�
 | ID | 기능 | 구현 상태 | 현재 범위·제한 | 확인한 범위 | 관련 코드 |
 | --- | --- | --- | --- | --- | --- |
 | B01 | 주소·검색·앞뒤 이동·새로고침 | 구현 | 외부 웹 탐색은 Android WebView. 웹 데모는 연습 페이지 중심 | 브라우저 자동 검사 | [App.tsx](../App.tsx), [BrowserSurface.tsx](../src/browser/BrowserSurface.tsx), [urls.ts](../src/urls.ts) |
-| B02 | 도구 접기·전체화면·화면 크기 대응 | 구현 | 화면 전환 버튼은 페이지 밖 하단. 전체화면의 하단 펜 도구함에서 질문·필기 도구 선택. 펼침·접힘 시 페이지 크기 유지. 새 배치는 APK 미포함 | 가로·세로·390px 도구함과 View/Edit 모사 버튼 클릭, 질문 선택 유지, 전체화면 왕복 시 문서·필기·실행 취소 유지 검사 | [App.tsx](../App.tsx) |
+| B02 | 도구 접기·전체화면·화면 크기 대응 | 구현 | 화면 전환 버튼은 페이지 밖 하단. 전체화면의 하단 펜 도구함에서 질문·필기 도구 선택. 펼침·접힘 시 페이지 크기 유지. APK 0.2.5 포함 | 가로·세로·390px 도구함과 View/Edit 모사 버튼 클릭, 질문 선택 유지, 전체화면 왕복 시 문서·필기·실행 취소 유지 검사 | [App.tsx](../App.tsx) |
 | N01 | 펜·밑줄·형광펜·지우개 | 구현 | 색·굵기·압력 지원. 지우개는 획 전체 삭제 | 브라우저·네이티브 입력 자동 검사 | [engine.ts](../src/ink/engine.ts), [model.ts](../src/model.ts) |
 | N02 | S Pen 버튼 임시 지우기 | 구현 | 버튼을 누르는 동안 지우개 유지, 놓으면 이전 도구 복귀. 호버만으로는 지우지 않음 | 이전 APK에서 사용자 실물 확인 + 입력 자동 검사. 0.2.2 실물 재확인은 별개 | [SketchStylusInput.kt](../plugins/android/SketchStylusInput.kt), [engine.ts](../src/ink/engine.ts) |
 | N03 | 펜만 입력·두 손가락 탐색 전환 | 구현 | 같은 방향 드래그로 탐색 전환. 모든 기기의 손바닥 차단을 보장하는 기능은 아님 | 브라우저·입력 패킷 자동 검사 | [engine.ts](../src/ink/engine.ts) |
@@ -63,9 +63,9 @@ PC가 꺼져 있으면 새 수정안 생성과 main 반영이 대기한다. 서�
 | ID | 기능 | 구현 상태 | 현재 범위·제한 | 확인한 범위 | 관련 코드 |
 | --- | --- | --- | --- | --- | --- |
 | Q01 | 펜으로 질문 영역 지정 | 구현 | APK 0.2.3부터 질문 영역 도구에서 한 바퀴 둘러싸기. 선택선은 필기·실행 취소·저장에 포함하지 않음. 화면 이동·변경 시 다시 선택 | DOM·네이티브 펜 패킷, 열린 선·터치 제외, 스크롤·회전·본문 변경 자동 검사·APK 코드 포함 확인 | [engine.ts](../src/ask/engine.ts), [App.tsx](../App.tsx) |
-| Q02 | 선택 영역 이미지 | 구현 | 원문 전용 캡처에 별도 복사한 필기 비트맵을 직접 합성하고 자유형 경계 밖을 흰색 처리. 선택선·버튼 제외. PNG base64 최대 4MB. 합성 보완은 APK 미포함 | 원문 캡처에 필기가 없는 조건의 Chrome 픽셀·형광펜 1회 합성·배율·엄격한 이미지 CSP·취소 시 복원 검사. 실물 WebView 캡처 대기 | [engine.ts](../src/ask/engine.ts), [capture.ts](../src/ask/capture.ts), [BrowserSurface.tsx](../src/browser/BrowserSurface.tsx) |
+| Q02 | 선택 영역 이미지 | 구현 | 원문 전용 캡처에 별도 복사한 필기 비트맵을 직접 합성하고 자유형 경계 밖을 흰색 처리. 선택선·버튼 제외. PNG base64 최대 4MB. 합성 보완은 APK 0.2.5 포함 | 원문 캡처에 필기가 없는 조건의 Chrome 픽셀·형광펜 1회 합성·배율·엄격한 이미지 CSP·취소 시 복원 검사. 실물 WebView 캡처 대기 | [engine.ts](../src/ask/engine.ts), [capture.ts](../src/ask/capture.ts), [BrowserSurface.tsx](../src/browser/BrowserSurface.tsx) |
 | Q03 | 짧은 답변·내용 없음 안내 | 구현 | GitHub 소유자 한 명, 개인 PC Codex의 ChatGPT 구독과 임시 이미지 질문. 손글씨 질문 우선, 본문은 참고 문맥. 질문이 없으면 내용 설명, 내용 없음·판독 불가는 고정 안내. PC 실행기 갱신 완료 | 인증·CSRF·실제 Cloudflare 런타임 중계·취소·답변 UI 자동 검사. 실제 구독 호출에서 인쇄된 1+1만 있을 때 2, 펜 획 7+5=?를 함께 합성하면 12 확인. 실물 한글 손글씨 품질은 미확인 | 블로그 [sketch-question.mjs](../../imjae.github.io/server/sketch-question.mjs), [codex-question.mjs](../runner/codex-question.mjs) |
-| Q04 | 저장하지 않는 답변 카드 | 구현 | 본문 조작을 막지 않는 폭 최대 440px 카드. 선택 영역과 겹침이 적은 모서리에 배치, 제목 드래그·접기·확대. 접기는 같은 WebView 유지, 닫기·페이지 이동은 폐기. 새 카드는 APK 미포함 | 본문 크기 유지·배경 클릭/스크롤·이동·접기/확대·회전/390px·Escape 우선 닫기 검사. 실제 WebView 로그인·S Pen 카드 조작은 검증 대기 | [QuestionShell.tsx](../src/ask/QuestionShell.tsx), [QuestionPanel.tsx](../src/ask/QuestionPanel.tsx), [useQuestion.ts](../src/ask/useQuestion.ts) |
+| Q04 | 저장하지 않는 답변 카드 | 구현 | 본문 조작을 막지 않는 폭 최대 440px 카드. 선택 영역과 겹침이 적은 모서리에 배치, 제목 드래그·접기·확대. 접기는 같은 WebView 유지, 닫기·페이지 이동은 폐기. APK 0.2.5 포함 | 본문 크기 유지·배경 클릭/스크롤·이동·접기/확대·회전/390px·Escape 우선 닫기 검사. 실제 WebView 로그인·S Pen 카드 조작은 검증 대기 | [QuestionShell.tsx](../src/ask/QuestionShell.tsx), [QuestionPanel.tsx](../src/ask/QuestionPanel.tsx), [useQuestion.ts](../src/ask/useQuestion.ts) |
 
 ### 필기 전송과 요청 관리
 
@@ -185,6 +185,15 @@ flowchart TD
 | X13 | 미구현 후보 | 필기 백업·복원 | N05 | 저장소·서재 UI | 원본 파일에서 획·주소·버전을 복원하고 다른 URL의 필기와 섞이지 않음 |
 | X14 | 미구현 후보 | 획 부분 지우개 | N01, N04 | 필기 엔진·획 저장 모델 | 닿은 구간만 지워지고 실행 취소 시 원래 획·압력·앵커 복원 |
 | X15 | 미구현 후보 | AI 실행 방식 교체 | A02~A03 | `askCodex`와 교체 제안 계약의 분리 | 선택한 실행 방식이 동일한 결과 규격을 반환하고, 변경 범위 검사·사용자 승인 규칙을 유지 |
+
+## 2026-10-28 질문 사용성 APK 0.2.5 검증
+
+- 사용자 빌드 요청 뒤 소스 `2cf98c7b96c67957c9fd0c59d65db1e5082462a9`의 [수동 빌드](https://github.com/imjae/SketchBrowser/actions/runs/40656212037)가 성공했다. [APK 다운로드](https://github.com/imjae/SketchBrowser/actions/runs/40656212037/artifacts/12802102884)는 2026-11-27까지 보관하며 ZIP에서 `SketchBrowser-0.2.5-test.apk`를 설치한다.
+- CI 타입·단위 33개와 Android 입력 7개가 통과했다. 실제 본문·답변 WebView 입력 구분, 도구창 위 입력 차단과 바깥 본문 입력, 기존 Samsung 버튼/취소/호버 경로를 포함한다. 첫 시도에서 발견한 Robolectric 설정의 지원하지 않는 인자와 가상 디스플레이 밖 테스트 좌표를 보정했다.
+- 패키지는 `com.sketchbrowser.app`, 버전 `0.2.5`, versionCode `11`, ARM64·ARMv7이다. 네이티브 빌드와 APK v2 서명 검사가 통과했고 이전 0.2.4 인증서와 일치한다.
+- 실제 내려받은 APK는 40,591,798 bytes, SHA-256 `743287e418e1e905cea903653ceb0f2e88f7f24af35eb994666b29da23ce7f22`다. 소스·버전·크기·해시를 빌드 기록과 대조했으며 ZIP SHA-256 `a9f4ba8b07c6c0a164a06377f6bd4012ae43954b9d54eb635f228e004fc37791`도 GitHub artifact digest와 일치한다.
+- Hermes 번들에서 필기 합성·답변 카드·접기/확대·전체화면 도구함 코드를, DEX에서 본문 전용 펜 입력 표식을 확인했다. 검증본은 `dist/apk/0.2.5/`에 있다. PC 질문 실행기는 실행 중이며 연결 완료 기록을 확인했다.
+- 이번 빌드에서 Worker·공개 글을 변경하거나 배포하지 않았다. 자동 검사와 APK 검증은 실제 Galaxy Tab 업데이트 설치·원문/필기 합성·GitHub 로그인·카드 조작 검증과 구분한다.
 
 ## 2026-10-28 전체화면 질문과 답변 카드 사용성
 
