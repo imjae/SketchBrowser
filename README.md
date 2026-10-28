@@ -85,7 +85,7 @@ Java 17과 Android SDK가 준비된 환경에서는 `pnpm prebuild:android` 후 
 
 ## 태블릿에 APK 설치하기
 
-[0.2.2 APK 빌드](https://github.com/imjae/SketchBrowser/actions/runs/40466825257)에서 **Artifacts → SketchBrowser-android-test**를 다운로드하세요. ZIP 안의 `SketchBrowser-0.2.2-test.apk`를 태블릿으로 옮겨 실행하면 설치됩니다. 설치 화면에서 요청하는 경우 해당 파일 앱 또는 브라우저의 **이 출처 허용**을 켜 주세요.
+[0.2.3 APK 다운로드](https://github.com/imjae/SketchBrowser/actions/runs/40644592233/artifacts/12797013042)에서 ZIP을 받은 뒤 `SketchBrowser-0.2.3-test.apk`를 태블릿으로 옮겨 설치하세요. 질문 기능과 기존 포트폴리오 수정 기능을 포함합니다. 0.2.2와 동일한 서명이므로 기존 앱 위에 업데이트할 수 있습니다. 설치 화면에서 요청하는 경우 해당 파일 앱 또는 브라우저의 **이 출처 허용**을 켜 주세요. GitHub 로그인이 필요하며 다운로드 보관 기한은 2026-11-27입니다.
 
 이 APK는 앱 코드를 포함하므로 **Expo Go나 PC 개발 서버 없이 실행**됩니다. ARM64·ARMv7 Android 태블릿을 지원하며, 필기는 설치한 앱의 기기에 저장됩니다. 외부 웹페이지를 열 때에는 인터넷이 필요합니다. 서명은 Expo 템플릿의 테스트 키를 사용합니다.
 

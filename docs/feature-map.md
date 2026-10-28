@@ -1,6 +1,6 @@
 # SketchBrowser 기능 구현 현황과 확장 지도
 
-기준일: 2026-10-28. 영역 질문과 ChatGPT 구독을 사용하는 개인 PC 연결을 구현했고 서버 `b293287`을 배포했다. 사용자 요청에 따라 질문 기능을 포함한 **0.2.3 APK(versionCode 9) 수동 빌드를 진행한다.** 성공·다운로드 검증은 완료 후 기록한다. 기존 0.2.2 빌드 소스는 `732c0f8`이며 질문 도구는 없다.
+기준일: 2026-10-28. 영역 질문과 ChatGPT 구독을 사용하는 개인 PC 연결을 구현했고 서버 `b293287`을 배포했다. 질문 기능을 포함한 **0.2.3 APK(versionCode 9) 수동 빌드와 다운로드 파일 검증이 성공했다.** 앱 빌드 소스는 `be36fe8`이며 실물 설치·질문 전체 흐름 확인은 남아 있다. 이전 0.2.2에는 질문 도구가 없다.
 이 문서는 다음 작업을 고르고 구현 범위를 확인하는 기준표다. 기능 ID를 유지하면서 행을 추가하고, 구현 상태와 검증 결과는 따로 갱신한다.
 
 **앱 빌드는 사용자가 요청할 때만 실행한다.** 2026-10-28 사용자가 질문 기능을 포함한 APK와 다운로드 링크를 명시적으로 요청했다. 이전 0.2.1·0.2.2 검증 기록은 아래에 유지한다.
@@ -60,7 +60,7 @@ PC가 꺼져 있으면 새 수정안 생성과 main 반영이 대기한다. 서�
 
 | ID | 기능 | 구현 상태 | 현재 범위·제한 | 확인한 범위 | 관련 코드 |
 | --- | --- | --- | --- | --- | --- |
-| Q01 | 펜으로 질문 영역 지정 | 구현 | 질문 영역 도구에서 한 바퀴 둘러싸기. 선택선은 필기·실행 취소·저장에 포함하지 않음. 화면 이동·변경 시 다시 선택 | DOM·네이티브 펜 패킷, 열린 선·터치 제외, 스크롤·회전·본문 변경 자동 검사 | [engine.ts](../src/ask/engine.ts), [App.tsx](../App.tsx) |
+| Q01 | 펜으로 질문 영역 지정 | 구현 | APK 0.2.3부터 질문 영역 도구에서 한 바퀴 둘러싸기. 선택선은 필기·실행 취소·저장에 포함하지 않음. 화면 이동·변경 시 다시 선택 | DOM·네이티브 펜 패킷, 열린 선·터치 제외, 스크롤·회전·본문 변경 자동 검사·APK 코드 포함 확인 | [engine.ts](../src/ask/engine.ts), [App.tsx](../App.tsx) |
 | Q02 | 선택 영역 이미지 | 구현 | 현재 보이는 화면과 기존 필기를 캡처하고 자유형 경계 밖을 흰색 처리. 선택선·버튼 제외. PNG base64 최대 4MB | 실제 Chrome 캡처 픽셀·배율·엄격한 이미지 CSP·실패 시 원본 미전송 검사. 실물 WebView 캡처 대기 | [capture.ts](../src/ask/capture.ts), [BrowserSurface.tsx](../src/browser/BrowserSurface.tsx) |
 | Q03 | 짧은 답변·내용 없음 안내 | 구현 | GitHub 소유자 한 명, 개인 PC Codex의 ChatGPT 구독과 임시 이미지 질문. 질문이 없으면 보이는 내용 설명, 내용 없음·판독 불가는 고정 안내 | 인증·CSRF·실제 Cloudflare 런타임 중계·취소·답변 UI 자동 검사. 실제 구독 호출에서 합성 질문 답 2와 빈 이미지 안내 확인. 실물 손글씨 품질은 미확인 | 블로그 [sketch-question.mjs](../../imjae.github.io/server/sketch-question.mjs), [codex-question.mjs](../runner/codex-question.mjs) |
 | Q04 | 저장하지 않는 답변 패널 | 구현 | 넓은 화면의 오른쪽 패널, 좁은 화면의 하단 패널. 닫기·페이지 이동 시 요청 취소·메모리 해제. 기록·대화 이어가기 없음 | 가로·세로·390px 배치, 늦은 응답 차단, 새로고침 후 복원·재전송 없음. 기기 검증 대기 | [QuestionPanel.tsx](../src/ask/QuestionPanel.tsx), [useQuestion.ts](../src/ask/useQuestion.ts) |
@@ -95,7 +95,7 @@ PC가 꺼져 있으면 새 수정안 생성과 main 반영이 대기한다. 서�
 | --- | --- | --- | --- | --- | --- |
 | O01 | PC 실행기 시작·중지·연결 복구 | 구현 | 숨겨진 프로세스, DPAPI 자격 증명, 개인 작업 폴더. 재부팅 후 수동 시작 | 실제 시작·중지·재연결 확인 | [setup.mjs](../runner/setup.mjs), [launch.mjs](../runner/launch.mjs), [start.ps1](../runner/start.ps1) |
 | O02 | 요청 용량·보관 기간 제한 | 구현 | 요청 100개, 이미지 base64 4MB, 설명 4,000자. 완료·폐기·실패 자료 30일 정리. PC 자료 자동 정리는 없음 | 용량·분할 파일 해시 검사. 30일 운영 경과 확인은 아님 | 블로그 [sketch-protocol.mjs](../../imjae.github.io/server/sketch-protocol.mjs), [sketch-review.mjs](../../imjae.github.io/server/sketch-review.mjs) |
-| O03 | 요청할 때만 앱 빌드 | 설정 변경 | 프로젝트 규칙에 명시. 현재 작업 브랜치와 원격 main의 APK 워크플로는 수동 실행만 사용 | 작업 브랜치와 main `fcf57b4` 반영. 0.2.1·0.2.2는 각각 사용자 요청에 따른 workflow_dispatch 실행 | [AGENTS.md](../AGENTS.md), [android-apk.yml](../.github/workflows/android-apk.yml) |
+| O03 | 요청할 때만 앱 빌드 | 설정 변경 | 프로젝트 규칙에 명시. 현재 작업 브랜치와 원격 main의 APK 워크플로는 수동 실행만 사용 | 작업 브랜치와 main `fcf57b4` 반영. 0.2.1·0.2.2·0.2.3은 각각 사용자 요청에 따른 workflow_dispatch 실행 | [AGENTS.md](../AGENTS.md), [android-apk.yml](../.github/workflows/android-apk.yml) |
 
 ## UI/UX 구현 현황과 개선 기준
 
@@ -174,7 +174,7 @@ flowchart TD
 | X04 | 미구현 후보 | 여러 미전송 요청·오프라인 재시도 | R03, R05 | `ReviewPanel` 보관 파일 구조 | 여러 요청이 앱 재시작 후 남고 개별 재전송 시 중복 접수 없음 |
 | X05 | 미구현 후보 | 문장별 수정 선택 | A03, V01~V02 | 교체 JSON·변경 비교 UI·승인 규격 | 선택한 변경만 적용하고 새 커밋·미리보기로 재검사·재승인 |
 | X06 | 미구현 후보 | 필기 이미지·PDF 내보내기 | N05, R01 | 캡처·기기 파일·Android 공유 | 원문 주소·필기가 포함된 파일을 AI 계정 연결 없이 저장·공유 |
-| X07 | 구현 | 일반 페이지에서 일회용 AI 질문·설명 | Q01~Q04 | `src/ask/`·블로그 `server/sketch-question.mjs`·`runner/question.mjs` | 소유자 로그인·PC Codex 구독 연결 구현. 실제 합성 이미지 응답 확인, 기기 검증은 남음. 기존 APK 0.2.2에는 미포함 |
+| X07 | 구현 | 일반 페이지에서 일회용 AI 질문·설명 | Q01~Q04 | `src/ask/`·블로그 `server/sketch-question.mjs`·`runner/question.mjs` | 소유자 로그인·PC Codex 구독 연결과 APK 0.2.3 포함 확인. 실제 합성 이미지 응답 확인, 기기 검증은 남음 |
 | X08 | 미구현 후보 | 다른 블로그·저장소·페이지 유형 | A01, D01~D02 | 고정 URL·원본 조회·검사·배포 경로 분리 | 대상마다 원본 조회·허용 파일·검사·미리보기·승인 배포 규칙을 명시하고 오적용 차단 |
 | X09 | 미구현 후보 | PC 실행기 자동 시작 | O01 | 실행기 수명 관리 | 사용자가 켜고 끌 수 있고, 재부팅 후 중복 프로세스 없이 연결 복구 |
 | X10 | 미구현 후보 | 수정 완료·배포 실패 알림 | R05, D02 | 서버 상태·앱 알림 | 사용자가 알림을 켜고 끌 수 있으며, 해당 요청의 실제 상태와 일치하는 알림을 한 번 전달 |
@@ -183,6 +183,14 @@ flowchart TD
 | X13 | 미구현 후보 | 필기 백업·복원 | N05 | 저장소·서재 UI | 원본 파일에서 획·주소·버전을 복원하고 다른 URL의 필기와 섞이지 않음 |
 | X14 | 미구현 후보 | 획 부분 지우개 | N01, N04 | 필기 엔진·획 저장 모델 | 닿은 구간만 지워지고 실행 취소 시 원래 획·압력·앵커 복원 |
 | X15 | 미구현 후보 | AI 실행 방식 교체 | A02~A03 | `askCodex`와 교체 제안 계약의 분리 | 선택한 실행 방식이 동일한 결과 규격을 반환하고, 변경 범위 검사·사용자 승인 규칙을 유지 |
+
+## 2026-10-28 질문 기능 포함 APK 0.2.3
+
+- 사용자가 질문 기능을 포함한 앱 빌드와 APK 다운로드 링크를 명시적으로 요청했다. 소스 `be36fe8e44032fe6d60ad79e9f6391719a5c692b`의 [수동 빌드](https://github.com/imjae/SketchBrowser/actions/runs/40644592233)가 성공했다. [GitHub APK 다운로드](https://github.com/imjae/SketchBrowser/actions/runs/40644592233/artifacts/12797013042)의 ZIP에 `SketchBrowser-0.2.3-test.apk`가 있으며 2026-11-27까지 보관한다.
+- 버전 `0.2.3`, versionCode `9`, 패키지 `com.sketchbrowser.app`, ARM64·ARMv7 설치형 APK다. CI 타입·단위 30개, Android/Samsung 입력 검사, APK v2 서명 검사가 통과했다.
+- 실제 받은 APK는 40,581,150 bytes이며 SHA-256 `f52b0a309308947d52aeaf688b9ac9559b58dae4708e83b46af6bc856ecb7c30`이 산출물 기록과 일치한다. ZIP 해시도 GitHub artifact digest와 일치한다. 로컬 검증본은 `dist/apk/0.2.3/`에 있다.
+- APK 안의 Hermes 번들에서 질문 도구·영역 캡처·자유형 마스크·보호 답변 페이지·전송/종료 코드를 확인했다. v2 서명 인증서 SHA-256 `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`가 이전 0.2.2와 같아 업데이트 설치를 지원한다.
+- 서버와 PC 질문 실행기는 앞서 연결을 확인했다. Galaxy Tab에서 실제 업데이트 설치·GitHub 로그인·S Pen 영역 캡처·운영 서버 답변 전체 흐름을 실행한 결과는 아니다. 질문에는 PC가 켜져 있고 `question:start` 실행기가 연결되어 있어야 한다.
 
 ## 2026-10-28 구독 연결과 서버 배포
 
