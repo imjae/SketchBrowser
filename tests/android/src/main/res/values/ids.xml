@@ -1,0 +1,4 @@
+<resources>
+    <!-- The real app receives this tag ID from React Native. -->
+    <item type="id" name="view_tag_native_id" />
+</resources>

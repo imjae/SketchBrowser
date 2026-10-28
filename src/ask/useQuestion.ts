@@ -11,7 +11,7 @@ export function useQuestion(browser: RefObject<BrowserHandle | null>) {
   const [selection, setSelection] = useState<QuestionSelection|null>(null);
   const [notice, setNotice] = useState('');
   const [capturing, setCapturing] = useState(false);
-  const [panel, setPanel] = useState<{image:QuestionImage|null;error:string}|null>(null);
+  const [panel, setPanel] = useState<{image:QuestionImage|null;error:string;anchor:QuestionSelection['bounds']}|null>(null);
   const close = useCallback(() => {
     pending.current?.abort(); pending.current=null;
     setCapturing(false); setPanel(null); setSelection(null); setNotice('');
@@ -30,16 +30,16 @@ export function useQuestion(browser: RefObject<BrowserHandle | null>) {
     setSelection(m.selection); setNotice(m.notice||'');
   }, [close]);
   const ask = async () => {
-    if(!selection || pending.current || !browser.current)return;
+    if(!selection || panel || pending.current || !browser.current)return;
     const controller=new AbortController(); pending.current=controller;
     setCapturing(true); setNotice('');
     try {
       const image=await browser.current.captureQuestion(selection.id,controller.signal);
       if(controller.signal.aborted || pending.current!==controller)return;
-      setPanel({image:{id:randomUUID(),image},error:''});
+      setPanel({image:{id:randomUUID(),image},error:'',anchor:selection.bounds});
       browser.current?.send({type:'questionClear'});
     } catch(e) {
-      if(!controller.signal.aborted && pending.current===controller) setPanel({image:null,error:(e as Error).message||'영역을 준비하지 못했어요.'});
+      if(!controller.signal.aborted && pending.current===controller) setPanel({image:null,error:(e as Error).message||'영역을 준비하지 못했어요.',anchor:selection.bounds});
     } finally {
       if(pending.current===controller){pending.current=null;setCapturing(false);}
     }

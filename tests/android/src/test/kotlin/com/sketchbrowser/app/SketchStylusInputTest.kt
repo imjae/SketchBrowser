@@ -17,10 +17,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], manifest = Config.NONE)
+@Config(sdk = [34], manifest = Config.NONE, packageName = "com.sketchbrowser.inputtests")
 class SketchStylusInputTest {
   private lateinit var view: RecordingWebView
   private lateinit var input: SketchStylusInput
+  private var nativeIdTag = 0
 
   private class RecordingWebView(activity: Activity) : WebView(activity) {
     val packets = mutableListOf<JSONObject>()
@@ -32,6 +33,9 @@ class SketchStylusInputTest {
   @Before fun setUp() {
     val activity = Robolectric.buildActivity(Activity::class.java).setup().visible().get()
     view = RecordingWebView(activity)
+    nativeIdTag = activity.resources.getIdentifier("view_tag_native_id", "id", activity.packageName)
+    assertNotEquals(0, nativeIdTag)
+    view.setTag(nativeIdTag, "sketch-ink-surface")
     // Give the simulated window a deterministic, attached WebView surface.
     // No Chromium renderer participates in these native input tests.
     val root = activity.window.decorView as ViewGroup
@@ -72,6 +76,27 @@ class SketchStylusInputTest {
     assertEquals(70.0, lastSample().getDouble("x") - view.packets.first().getJSONArray("events").getJSONObject(0).getDouble("x"), 0.01)
     assertTrue(touch(MotionEvent.ACTION_UP))
     assertTrue(view.packets.last().getBoolean("end"))
+  }
+
+  @Test fun answerAndLoginWebViewsKeepNormalPenInput() {
+    view.setTag(nativeIdTag, null)
+    assertFalse(touch(MotionEvent.ACTION_DOWN))
+    assertTrue(view.packets.isEmpty())
+  }
+
+  @Test fun markerOnDocumentWrapperAllowsInkButOverlayControlsBlockIt() {
+    val root = view.parent as ViewGroup
+    view.setTag(nativeIdTag, null)
+    root.setTag(nativeIdTag, "sketch-ink-surface")
+    assertTrue(touch(MotionEvent.ACTION_DOWN))
+    assertTrue(touch(MotionEvent.ACTION_UP))
+    val overlay = View(view.context)
+    root.addView(overlay, ViewGroup.LayoutParams(200, 100))
+    overlay.left = 100; overlay.top = 250; overlay.right = 300; overlay.bottom = 350
+    val count = view.packets.size
+    assertFalse(touch(MotionEvent.ACTION_DOWN))
+    assertEquals(count, view.packets.size)
+    assertTrue(touch(MotionEvent.ACTION_DOWN, 400f))
   }
 
   @Test fun samsungButtonContactStartsMovesAndEndsAnEraseStream() {

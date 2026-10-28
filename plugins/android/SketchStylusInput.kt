@@ -17,6 +17,10 @@ import org.json.JSONObject
  * normal Android input path. Mixed touches in an owned stroke travel together.
  */
 class SketchStylusInput(private val activity: Activity) {
+  // Native IDs are React Native tags on the wrapper, not Android view IDs.
+  // Only the document surface owns ink. The floating answer/login WebView
+  // must keep normal pen clicks, scrolling and text selection.
+  private val nativeIdTag = activity.resources.getIdentifier("view_tag_native_id", "id", activity.packageName)
   private companion object {
     // Samsung's button-held touch actions, also normalized by Chromium's
     // SPenSupport before WebView handles them.
@@ -74,7 +78,14 @@ class SketchStylusInput(private val activity: Activity) {
     // positions use screen coordinates (different in split-screen windows).
     val x = event.rawX - event.x + event.getX(index) - location[0]
     val y = event.rawY - event.y + event.getY(index) - location[1]
-    return hit(root, x.toInt(), y.toInt()) as? WebView
+    val view = hit(root, x.toInt(), y.toInt()) as? WebView ?: return null
+    if (nativeIdTag == 0) return null
+    var ancestor: View? = view
+    while (ancestor != null) {
+      if (ancestor.getTag(nativeIdTag) == "sketch-ink-surface") return view
+      ancestor = ancestor.parent as? View
+    }
+    return null
   }
 
   private fun sample(view: WebView, event: MotionEvent, index: Int, type: String, history: Int = -1): JSONObject {

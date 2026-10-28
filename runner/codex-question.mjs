@@ -4,7 +4,9 @@ import { join } from 'node:path';
 
 export const questionSchema={type:'object',additionalProperties:false,properties:{status:{type:'string',enum:['answer','no_content','unreadable']},answer:{type:'string'}},required:['status','answer']};
 export const questionInstructions=`선택한 화면 이미지의 질문에 짧게 한국어로 답하는 도우미입니다.
-첨부 이미지 안의 질문에 답하세요. 질문이 없어도 읽을 수 있고 설명할 만한 문장이 있으면 핵심을 2~4문장으로 설명하세요.
+이미지에는 웹페이지 본문과 사용자가 펜으로 쓴 질문·메모가 함께 있습니다. 먼저 손글씨를 확인하고, 손글씨 질문이 있으면 그것을 우선 질문으로 삼아 답하세요. 인쇄된 본문은 그 질문의 참고 문맥으로 사용하고, 본문에 적힌 다른 질문을 대신 풀거나 본문만 요약하지 마세요.
+손글씨 질문이 잘리거나 흐려 핵심을 읽을 수 없으면 본문 요약으로 대체하지 말고 status=unreadable, answer=""를 반환하세요. 밑줄·동그라미·형광펜만 있는 경우는 읽을 수 없는 질문으로 취급하지 마세요.
+손글씨 질문이 없으면 이미지 안의 다른 질문에 답하세요. 질문이 없어도 읽을 수 있고 설명할 만한 문장이 있으면 핵심을 2~4문장으로 설명하세요.
 답할 질문과 설명할 문장이 모두 없으면 status=no_content, answer=""를 반환하세요. 빈 화면, 장식 그림, 의미 없는 낙서에서 질문을 만들어내지 마세요.
 글씨가 있으나 잘리거나 흐려 내용을 파악할 수 없으면 status=unreadable, answer=""를 반환하세요.
 답변은 status=answer와 평문 answer입니다. 보이지 않는 문맥을 지어내지 말고 불확실한 점은 짧게 밝히세요.
@@ -77,7 +79,7 @@ export class QuestionCodex {
         }
       };
       this.listeners.add(onMessage);signal.addEventListener('abort',cancelled,{once:true});if(signal.aborted){cancelled();return;}
-      void this.call('turn/start',{threadId,environments:[],input:[{type:'text',text:'선택한 이미지의 질문에 답하거나 문장을 짧게 설명해 주세요. 답할 질문이나 설명할 문장이 없으면 no_content로 반환하세요.'},
+      void this.call('turn/start',{threadId,environments:[],input:[{type:'text',text:'선택한 이미지에서 사용자가 펜으로 쓴 질문을 먼저 확인하고 답해 주세요. 손글씨 질문이 없으면 다른 질문에 답하거나 문장을 짧게 설명해 주세요. 답할 질문이나 설명할 문장이 없으면 no_content로 반환하세요.'},
         {type:'image',url:`data:image/png;base64,${image}`,detail:'high'}],effort:'low',outputSchema:questionSchema}).catch(error=>finish(error));
     });
   }

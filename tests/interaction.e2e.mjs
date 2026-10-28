@@ -84,7 +84,9 @@ try {
   assert.equal(await snapshot(), originalNotes);
   const full = await page.locator('iframe').boundingBox();
   const viewport = page.viewportSize();
-  assert.ok(full.x <= 1 && full.y <= 1 && full.width >= viewport.width - 1 && full.height >= viewport.height - 1);
+  const dock = await page.getByTestId('fullscreen-dock').boundingBox();
+  assert.ok(full.x <= 1 && full.y <= 1 && full.width >= viewport.width - 1 && full.height >= viewport.height - 60);
+  assert.ok(dock.y >= full.y + full.height - 1 && dock.y + dock.height <= viewport.height + 1, 'screen controls reserve space below the page');
   await page.screenshot({ path: 'test-results/content-fullscreen.png' });
   await tool('전체화면 종료').click();
   await count(1); await selected('펜');

@@ -46,6 +46,7 @@ function SketchBrowser() {
   const [settings, setSettings] = useState<InkSettings>(DEFAULT_SETTINGS);
   const [libraryOpen, setLibraryOpen] = useState(width >= 1050);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(false);
+  const [fullscreenToolsOpen, setFullscreenToolsOpen] = useState(false);
   const [contentFullscreen, setContentFullscreen] = useState(false);
   const fullscreenRef = useRef(false); fullscreenRef.current = contentFullscreen;
   const browserFullscreenActive = useRef(false);
@@ -54,6 +55,7 @@ function SketchBrowser() {
   const onInputTool = useCallback((tool: 'browse' | 'pen') => setSettings((previous) => ({ ...previous, tool })), []);
   const notes = useNotebook(browser, settings, onInputTool);
   const question = useQuestion(browser);
+  useEffect(() => { if (!wide && question.panel) setLibraryOpen(false); }, [wide, question.panel]);
   const [pageSize, setPageSize] = useState({width:0,height:0});
   const [reviewOpen, setReviewOpen] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -73,6 +75,7 @@ function SketchBrowser() {
 
   const exitFullscreen = useCallback(() => {
     setContentFullscreen(false);
+    setFullscreenToolsOpen(false);
     if (Platform.OS === 'web' && document.fullscreenElement === document.documentElement) {
       void document.exitFullscreen().catch(() => undefined);
     }
@@ -80,6 +83,7 @@ function SketchBrowser() {
 
   const enterFullscreen = () => {
     setContentFullscreen(true);
+    setFullscreenToolsOpen(false);
     if (Platform.OS === 'web' && document.fullscreenEnabled) {
       // Embedded browsers can reject the Fullscreen API; content-only mode still works.
       void document.documentElement.requestFullscreen().catch(() => undefined);
@@ -96,7 +100,10 @@ function SketchBrowser() {
       }
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && fullscreenRef.current) exitFullscreen();
+      if (event.key !== 'Escape') return;
+      if (question.panel || question.capturing) question.close();
+      else if (fullscreenToolsOpen) setFullscreenToolsOpen(false);
+      else if (fullscreenRef.current) exitFullscreen();
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
     document.addEventListener('keydown', onKeyDown);
@@ -104,7 +111,7 @@ function SketchBrowser() {
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [exitFullscreen]);
+  }, [exitFullscreen, question.panel, question.capturing, question.close, fullscreenToolsOpen]);
 
   const navigate = useCallback((url: string) => {
     browser.current?.send({ type: 'flush' });
@@ -121,6 +128,8 @@ function SketchBrowser() {
 
   useEffect(() => {
     const event = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (question.panel || question.capturing) { question.close(); return true; }
+      if (fullscreenToolsOpen) { setFullscreenToolsOpen(false); return true; }
       if (contentFullscreen) { exitFullscreen(); return true; }
       if (libraryOpen && !wide) { setLibraryOpen(false); return true; }
       if (navigation.canGoBack) { browser.current?.back(); return true; }
@@ -128,13 +137,21 @@ function SketchBrowser() {
       return false;
     });
     return () => event.remove();
-  }, [contentFullscreen, exitFullscreen, libraryOpen, wide, navigation, navigate]);
+  }, [contentFullscreen, exitFullscreen, libraryOpen, wide, navigation, navigate, question.panel, question.capturing, question.close, fullscreenToolsOpen]);
 
   const submitAddress = () => {
     try { navigate(resolveAddress(address)); } catch (error) { setAddressError((error as Error).message); }
   };
-  const chooseTool = (tool: Tool) => setSettings((previous) => ({ ...previous, tool,
-    color: tool === 'highlighter' ? '#e6bc42' : previous.tool === 'highlighter' ? '#315de8' : previous.color }));
+  const chooseTool = (tool: Tool) => {
+    setSettings((previous) => ({ ...previous, tool,
+      color: tool === 'highlighter' ? '#e6bc42' : previous.tool === 'highlighter' ? '#315de8' : previous.color }));
+    if (contentFullscreen) setFullscreenToolsOpen(false);
+  };
+  const askQuestion = async () => {
+    setFullscreenToolsOpen(false);
+    await question.ask();
+    setSettings(previous => previous.tool === 'question' ? { ...previous, tool: 'browse' } : previous);
+  };
   const saveLabels = { loading: '필기 불러오는 중', ready: '필기할 준비 완료', saving: '저장 중…', saved: '기기에 저장됨', error: '저장 확인 필요' };
   const activeTool = notes.penButtonPressed ? 'eraser' : settings.tool;
   const currentTool = TOOLS.find((item) => item.tool === activeTool)!;
@@ -172,7 +189,32 @@ function SketchBrowser() {
     <View style={s.localStorage}><Icon name="lock" size={12} color="#929b8b" /><Text style={s.localStorageText}>필기는 이 기기에 보관돼요</Text></View>
   </View>;
 
-  return <SafeAreaView style={s.root} edges={contentFullscreen ? [] : ['top', 'right', 'bottom', 'left']}>
+  const penToolbar = <View style={s.toolbar}>
+    <ScrollView horizontal={!contentFullscreen} showsHorizontalScrollIndicator={false} style={contentFullscreen ? {maxHeight:pageSize.height * .55} : undefined} contentContainerStyle={[s.toolbarContent,contentFullscreen && s.fullscreenToolbarContent]}>
+      <View style={[s.toolGroup,contentFullscreen && s.fullscreenToolGroup]}>{TOOLS.map(({ tool, label, icon }) => <Pressable key={tool} accessibilityRole="button" accessibilityLabel={label}
+        accessibilityState={{ selected: activeTool === tool }} onPress={() => chooseTool(tool)}
+        style={({ pressed }) => [s.toolButton, activeTool === tool && s.toolButtonActive, pressed && s.pressed]}>
+        <Icon name={icon} size={19} color={activeTool === tool ? '#f7faf4' : '#7a8376'} /><Text style={[s.toolLabel, activeTool === tool && s.toolLabelActive]}>{label}</Text>
+      </Pressable>)}</View>
+      <View style={s.divider} />
+      <View style={s.colorGroup}>{COLORS.map((color) => <Pressable key={color} accessibilityRole="button" accessibilityLabel={`색상 ${color}`}
+        accessibilityState={{ selected: color === settings.color }} onPress={() => setSettings((previous) => ({ ...previous, color }))}
+        style={[s.colorRing, color === settings.color && { borderColor: color }]}><View style={[s.colorDot, { backgroundColor: color }]} /></Pressable>)}</View>
+      <View style={s.divider} />
+      <View style={s.widthGroup}>{[2, 3, 5].map((strokeWidth) => <Pressable key={strokeWidth} accessibilityRole="button" accessibilityLabel={`굵기 ${strokeWidth}`}
+        accessibilityState={{ selected: strokeWidth === settings.width }} onPress={() => setSettings((previous) => ({ ...previous, width: strokeWidth }))}
+        style={[s.widthButton, settings.width === strokeWidth && s.widthButtonActive]}><View style={{ width: strokeWidth + 2, height: strokeWidth + 2, borderRadius: 5, backgroundColor: '#53604e' }} /></Pressable>)}</View>
+      <View style={s.divider} />
+      <IconButton name="undo" label="실행 취소" onPress={() => browser.current?.send({ type: 'undo' })} disabled={!notes.history.canUndo} />
+      <IconButton name="redo" label="다시 실행" onPress={() => browser.current?.send({ type: 'redo' })} disabled={!notes.history.canRedo} />
+      <Pressable accessibilityRole="switch" accessibilityLabel="펜만 입력" accessibilityState={{ checked: settings.penOnly }}
+        onPress={() => setSettings((previous) => ({ ...previous, penOnly: !previous.penOnly }))} style={[s.penOnly, settings.penOnly && s.penOnlyActive]}>
+        <Icon name="pen" size={15} color={settings.penOnly ? GREEN : '#91998a'} /><Text style={[s.penOnlyText, settings.penOnly && { color: GREEN }]}>펜만</Text><View style={[s.switchTrack, settings.penOnly && { backgroundColor: GREEN }]}><View style={[s.switchThumb, settings.penOnly && { alignSelf: 'flex-end' }]} /></View>
+      </Pressable>
+    </ScrollView>
+  </View>;
+
+  return <SafeAreaView style={s.root} edges={['top', 'right', 'bottom', 'left']}>
     <StatusBar style="dark" hidden={contentFullscreen} />
     <View style={s.workspace}>
       {libraryOpen && wide && !contentFullscreen && library}
@@ -202,7 +244,6 @@ function SketchBrowser() {
               {!compact && <Text style={s.libraryButtonText}>도구</Text>}
               <Icon name={toolbarCollapsed ? 'chevronDown' : 'chevronUp'} size={13} color={GREEN} />
             </Pressable>
-            <IconButton name="maximize" label="브라우저 전체화면" onPress={enterFullscreen} />
           </View>}
           {!contentFullscreen && Platform.OS !== 'web' && <View style={s.reviewBar}>
             <View style={s.reviewActions}>
@@ -216,30 +257,7 @@ function SketchBrowser() {
             </View>
             {!!reviewBlock && <Text accessibilityLiveRegion="polite" style={s.reviewHint}>{reviewBlock.message}</Text>}
           </View>}
-          {!contentFullscreen && !toolbarCollapsed && <View style={s.toolbar}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.toolbarContent}>
-              <View style={s.toolGroup}>{TOOLS.map(({ tool, label, icon }) => <Pressable key={tool} accessibilityRole="button" accessibilityLabel={label}
-                accessibilityState={{ selected: activeTool === tool }} onPress={() => chooseTool(tool)}
-                style={({ pressed }) => [s.toolButton, activeTool === tool && s.toolButtonActive, pressed && s.pressed]}>
-                <Icon name={icon} size={19} color={activeTool === tool ? '#f7faf4' : '#7a8376'} /><Text style={[s.toolLabel, activeTool === tool && s.toolLabelActive]}>{label}</Text>
-              </Pressable>)}</View>
-              <View style={s.divider} />
-              <View style={s.colorGroup}>{COLORS.map((color) => <Pressable key={color} accessibilityRole="button" accessibilityLabel={`색상 ${color}`}
-                accessibilityState={{ selected: color === settings.color }} onPress={() => setSettings((previous) => ({ ...previous, color }))}
-                style={[s.colorRing, color === settings.color && { borderColor: color }]}><View style={[s.colorDot, { backgroundColor: color }]} /></Pressable>)}</View>
-              <View style={s.divider} />
-              <View style={s.widthGroup}>{[2, 3, 5].map((strokeWidth) => <Pressable key={strokeWidth} accessibilityRole="button" accessibilityLabel={`굵기 ${strokeWidth}`}
-                accessibilityState={{ selected: strokeWidth === settings.width }} onPress={() => setSettings((previous) => ({ ...previous, width: strokeWidth }))}
-                style={[s.widthButton, settings.width === strokeWidth && s.widthButtonActive]}><View style={{ width: strokeWidth + 2, height: strokeWidth + 2, borderRadius: 5, backgroundColor: '#53604e' }} /></Pressable>)}</View>
-              <View style={s.divider} />
-              <IconButton name="undo" label="실행 취소" onPress={() => browser.current?.send({ type: 'undo' })} disabled={!notes.history.canUndo} />
-              <IconButton name="redo" label="다시 실행" onPress={() => browser.current?.send({ type: 'redo' })} disabled={!notes.history.canRedo} />
-              <Pressable accessibilityRole="switch" accessibilityLabel="펜만 입력" accessibilityState={{ checked: settings.penOnly }}
-                onPress={() => setSettings((previous) => ({ ...previous, penOnly: !previous.penOnly }))} style={[s.penOnly, settings.penOnly && s.penOnlyActive]}>
-                <Icon name="pen" size={15} color={settings.penOnly ? GREEN : '#91998a'} /><Text style={[s.penOnlyText, settings.penOnly && { color: GREEN }]}>펜만</Text><View style={[s.switchTrack, settings.penOnly && { backgroundColor: GREEN }]}><View style={[s.switchThumb, settings.penOnly && { alignSelf: 'flex-end' }]} /></View>
-              </Pressable>
-            </ScrollView>
-          </View>}
+          {!contentFullscreen && !toolbarCollapsed && penToolbar}
           {!contentFullscreen && error && <View style={s.errorBar}><Text style={s.errorText}>{error}</Text>
             <Pressable accessibilityRole="button" onPress={() => { if (notes.error) notes.retrySave(); else if (addressError) setAddressError(null); else browser.current?.reload(); }} style={s.retryButton}><Text style={s.retryText}>{addressError ? '닫기' : '다시 시도'}</Text></Pressable></View>}
           {!contentFullscreen && notes.limit && <View style={s.errorBar}><Text style={s.errorText}>이 페이지의 필기 용량에 도달했어요. 다른 페이지에 이어 쓰거나, 필요 없는 획을 지워 주세요.</Text></View>}
@@ -256,29 +274,39 @@ function SketchBrowser() {
               top:Math.max(8,Math.min(pageSize.height-64,(question.selection.bounds.y+question.selection.bounds.height)*pageSize.height+8)),
             }]}>
               <Pressable accessibilityRole="button" accessibilityLabel="질문하기" disabled={question.capturing}
-                onPress={question.ask} style={[s.questionAsk,question.capturing && s.disabled]}>
+                onPress={askQuestion} style={[s.questionAsk,question.capturing && s.disabled]}>
                 <Text style={{color:'#fff',fontSize:15,fontWeight:'600'}}>{question.capturing?'영역 준비 중…':'질문하기'}</Text>
               </Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel="질문 영역 취소" onPress={question.close} style={s.questionCancel}><Text style={{color:GREEN,fontSize:14}}>취소</Text></Pressable>
             </View>}
+            {question.panel && <QuestionPanel {...question.panel} area={pageSize} onClose={question.close} />}
+            {contentFullscreen && fullscreenToolsOpen && <View testID="fullscreen-tools" style={s.fullscreenTools}>{penToolbar}</View>}
           </View>
-          {!contentFullscreen && <View style={s.statusBar}>
+          {contentFullscreen ? <View testID="fullscreen-dock" style={s.fullscreenDock}>
+            <Pressable accessibilityRole="button" accessibilityLabel={fullscreenToolsOpen ? '펜 도구 접기' : '펜 도구 펼치기'}
+              accessibilityState={{ expanded: fullscreenToolsOpen }} onPress={() => setFullscreenToolsOpen(v => !v)} style={s.dockButton}>
+              <Icon name={currentTool.icon} size={18} color={GREEN} /><Text style={s.libraryButtonText}>펜 도구함</Text>
+              <Icon name={fullscreenToolsOpen ? 'chevronDown' : 'chevronUp'} size={14} color={GREEN} />
+            </Pressable>
+            <Text numberOfLines={1} style={s.dockMode}>{currentTool.label} 모드</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="전체화면 종료" onPress={exitFullscreen} style={s.dockButton}>
+              <Icon name="minimize" size={18} color={GREEN} /><Text style={s.libraryButtonText}>전체화면 종료</Text>
+            </Pressable>
+          </View> : <View style={s.statusBar}>
             <View style={s.saveStatus}>{!webUnavailable && (notes.status === 'saving' || notes.status === 'loading') ? <ActivityIndicator size={12} color={GREEN} /> : <Icon name={notes.status === 'saved' ? 'check' : 'save'} size={13} color={notes.status === 'error' ? '#c47943' : GREEN} />}
               <Text accessibilityLiveRegion="polite" style={s.statusText}>{webUnavailable ? 'Android 앱에서 열어 주세요' : saveLabels[notes.status]}</Text></View>
             {!compact && <Text style={s.modeHint}>{activeTool === 'browse' ? '탐색 모드 · 스크롤하고 링크를 열 수 있어요' : `${currentTool.label} 모드${notes.penButtonPressed ? ' · 펜 버튼을 놓으면 이전 도구로 복귀' : settings.penOnly ? ' · 펜만 입력' : ''} · 두 손가락 드래그로 탐색`}</Text>}
             <Text style={s.strokeCount}>{notes.strokeCount}개의 획</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="브라우저 전체화면" onPress={enterFullscreen} style={s.dockButton}>
+              <Icon name="maximize" size={18} color={GREEN} /><Text style={s.libraryButtonText}>전체화면</Text>
+            </Pressable>
           </View>}
         </View>
         {!contentFullscreen && !compact && <View style={s.workspaceFooter}><Text style={s.footerText}>A LITTLE SPACE FOR YOUR THOUGHTS.</Text><Text style={s.footerVersion}>SketchBrowser {appConfig.expo.version}</Text></View>}
       </View>
       {libraryOpen && !wide && !contentFullscreen && <><Pressable accessibilityRole="button" accessibilityLabel="서재 바깥 영역 닫기" onPress={() => setLibraryOpen(false)} style={s.backdrop} />{library}</>}
-      {contentFullscreen && <Pressable accessibilityRole="button" accessibilityLabel="전체화면 종료" onPress={exitFullscreen}
-        style={({ pressed }) => [s.fullscreenExit, pressed && s.pressed]}>
-        <Icon name="minimize" size={19} color={GREEN} /><Text style={s.libraryButtonText}>전체화면 종료</Text>
-      </Pressable>}
     </View>
     <ReviewPanel visible={reviewOpen} onClose={() => setReviewOpen(false)} />
-    {question.panel && <QuestionPanel {...question.panel} onClose={question.close} />}
   </SafeAreaView>;
 }
 
@@ -302,7 +330,12 @@ const s = StyleSheet.create({
   tipCard: { backgroundColor: '#ecf1e5', borderWidth: 1, borderColor: '#e1e8d8', padding: 16, borderRadius: 10, marginTop: 18 }, tipTitle: { flexDirection: 'row', gap: 7, alignItems: 'center' }, tipTitleText: { fontSize: 11, color: '#637756', fontWeight: '600' }, tipText: { fontSize: 11, lineHeight: 21, color: '#91a084', marginVertical: 12 }, tipLink: { flexDirection: 'row', gap: 8, alignItems: 'center', minHeight: 30 }, tipLinkText: { fontSize: 10, color: GREEN }, localStorage: { flexDirection: 'row', gap: 5, alignItems: 'center', justifyContent: 'center', marginTop: 23 }, localStorageText: { fontSize: 9, color: '#9da692' },
   main: { flex: 1, minWidth: 0, paddingHorizontal: 23, paddingTop: 23, paddingBottom: 13 }, browserCard: { flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#dbe2d2', borderRadius: 12, overflow: 'hidden', elevation: 1, shadowColor: '#3d5032', shadowOpacity: 0.04, shadowRadius: 10 },
   fullscreenMain: { padding: 0, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 }, fullscreenCard: { borderWidth: 0, borderRadius: 0, elevation: 0, shadowOpacity: 0 },
-  fullscreenExit: { position: 'absolute', top: 12, right: 12, minHeight: 42, paddingHorizontal: 12, backgroundColor: '#fafcf5ed', borderWidth: 1, borderColor: '#dce4d4', borderRadius: 9, flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 40, elevation: 4 },
+  fullscreenDock: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, borderTopWidth: 1, borderColor: '#dce4d4', backgroundColor: '#fafcf5' },
+  dockButton: { minHeight: 44, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 8 },
+  dockMode: { flex: 1, minWidth: 0, fontSize: 11, color: '#65745f', textAlign: 'center' },
+  fullscreenTools: { position: 'absolute', bottom: 8, left: 8, right: 8, maxWidth: 780, zIndex: 30, elevation: 10, borderWidth: 1, borderColor: '#cbd8c5', borderRadius: 12, overflow: 'hidden' },
+  fullscreenToolbarContent: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8, paddingVertical: 8, gap: 4 },
+  fullscreenToolGroup: { width: '100%', flexWrap: 'wrap' },
   addressBar: { height: 63, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, borderBottomWidth: 1, borderColor: '#e8ece2', backgroundColor: '#fff' },
   reviewBar: { paddingHorizontal: 16, paddingVertical: 8, gap: 6, borderBottomWidth: 1, borderColor: '#e1e7d9', backgroundColor: '#f7f9f3' },
   reviewActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center' },

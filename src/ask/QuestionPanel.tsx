@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { AUTHOR_ORIGIN } from '../review/transfer';
 import { QUESTION_PATH, QuestionImage, questionTransferScript, isQuestionPage, parseQuestionPanelMessage } from './protocol';
 import { QuestionShell } from './QuestionShell';
+import type { QuestionPlacement } from './layout';
 
-export type QuestionPanelProps = { image: QuestionImage | null; error: string; onClose(): void };
+export type QuestionPanelProps = QuestionPlacement & { image: QuestionImage | null; error: string; onClose(): void };
 
-export function QuestionPanel({ image, error, onClose }: QuestionPanelProps) {
+export function QuestionPanel({ image, error, onClose, area, anchor }: QuestionPanelProps) {
   const webview = useRef<WebView>(null);
   const sent = useRef(false);
   const received = useRef(false);
@@ -23,8 +24,10 @@ export function QuestionPanel({ image, error, onClose }: QuestionPanelProps) {
     webview.current.injectJavaScript(questionTransferScript(image));
   };
   const dispose = () => webview.current?.injectJavaScript(`if(location.origin===${JSON.stringify(AUTHOR_ORIGIN)}&&location.pathname===${JSON.stringify(QUESTION_PATH)})window.disposeSketchQuestion?.();true;`);
-  useEffect(() => () => { clearDeadline(); dispose(); }, []);
-  return <QuestionShell onClose={() => { clearDeadline(); dispose(); onClose(); }}>
+  // Back/navigation can unmount the card without its close button. Dispose
+  // while the WebView ref is still attached, before removing the native view.
+  useLayoutEffect(() => () => { clearDeadline(); dispose(); }, []);
+  return <QuestionShell area={area} anchor={anchor} onClose={() => { clearDeadline(); dispose(); onClose(); }}>
     {error ? <Text accessibilityRole="alert" style={{padding:20,color:'#80502d',fontSize:16,lineHeight:25}}>{error}</Text> : !image ?
       <View style={{padding:24,gap:16}}><ActivityIndicator /><Text>선택한 영역을 준비하고 있어요.</Text></View> :
       <>

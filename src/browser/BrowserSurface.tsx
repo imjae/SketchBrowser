@@ -97,7 +97,7 @@ export const BrowserSurface = forwardRef<BrowserHandle, BrowserProps>(function B
     },
   }), []);
 
-  return <View ref={captureView} collapsable={false} style={{flex:1}}><WebView
+  return <View ref={captureView} nativeID="sketch-ink-surface" collapsable={false} style={{flex:1}}><WebView
     ref={webview}
     source={source}
     style={{ flex: 1, backgroundColor: '#fbfaf6' }}

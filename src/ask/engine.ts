@@ -75,6 +75,8 @@ export const QUESTION_SCRIPT = String.raw`
   }
   function questionRelease(nonce) {
     if(!captureLock || captureLock.kind!=='question' || captureLock.nonce!==nonce)return;
+    canvas.style.opacity=captureLock.opacity;
+    if(captureLock.ink){captureLock.ink.width=0;captureLock.ink.height=0;captureLock.ink=null;}
     captureLock=null;questionHidden=false;clearTimeout(captureTimer);requestDraw();
   }
   function questionCapture(command) {
@@ -83,17 +85,36 @@ export const QUESTION_SCRIPT = String.raw`
     if(!hydrated||captureLock||questionActive||!q||q.id!==command.selectionId||!questionStable(q.view)) {
       questionReply(command.nonce,{error:'질문 영역을 다시 지정해 주세요.'});return;
     }
-    captureLock={kind:'question',nonce:command.nonce,selection:q};questionHidden=true;draw();
+    var lock={kind:'question',nonce:command.nonce,selection:q,opacity:canvas.style.opacity,ink:null,ready:false};
+    captureLock=lock;questionHidden=true;
     clearTimeout(captureTimer);captureTimer=setTimeout(function(){questionRelease(command.nonce);},15000);
-    questionReply(command.nonce,{ready:true});
+    try {
+      // Copy rendered ink (including anchored positions), excluding the lasso.
+      // Android's native WebView snapshot is not a reliable ink canvas source.
+      draw();lock.ink=document.createElement('canvas');lock.ink.width=canvas.width;lock.ink.height=canvas.height;
+      lock.ink.getContext('2d').drawImage(canvas,0,0);
+      // Keep pointer interception while taking a page-only native snapshot.
+      // Hiding ink avoids applying translucent highlighter strokes twice.
+      canvas.style.opacity='0';
+      requestAnimationFrame(function(){requestAnimationFrame(function(){
+        if(captureLock!==lock)return;
+        if(!questionStable(q.view)){
+          questionRelease(command.nonce);questionReply(command.nonce,{error:'캡처 중 화면이 바뀌었어요. 영역을 다시 지정해 주세요.'});return;
+        }
+        lock.ready=true;questionReply(command.nonce,{ready:true});
+      });});
+    } catch(_) {
+      questionRelease(command.nonce);questionReply(command.nonce,{error:'필기 이미지를 준비하지 못했어요. 다시 시도해 주세요.'});
+    }
   }
   async function questionMask(command) {
     var lock=captureLock;
     if(!lock||lock.kind!=='question'||lock.nonce!==command.nonce)return;
+    if(!lock.ready||!lock.ink){questionReply(command.nonce,{error:'필기 이미지를 준비하지 못했어요. 다시 시도해 주세요.'});return;}
     if(typeof command.image!=='string'||command.image.length>12000000||!/^[A-Za-z0-9+/]+={0,2}$/.test(command.image)) {
       questionReply(command.nonce,{error:'영역 이미지를 준비하지 못했어요.'});return;
     }
-    var image;
+    var image,out;
     try {
         // Decode memory bytes directly: page img-src CSP can block data: URLs.
         var bytes=Uint8Array.from(atob(command.image),function(c){return c.charCodeAt(0);});
@@ -102,16 +123,17 @@ export const QUESTION_SCRIPT = String.raw`
         var q=lock.selection;
         if(!questionStable(q.view))throw new Error('캡처 중 화면이 바뀌었어요. 영역을 다시 지정해 주세요.');
         if(!image.width||!image.height||image.width*image.height>24000000||Math.abs((image.width/image.height)/(q.view.w/q.view.h)-1)>.02)throw new Error('화면 크기가 바뀌었어요. 영역을 다시 지정해 주세요.');
-        var sx=image.width/q.view.w,sy=image.height/q.view.h,b=q.box,out=document.createElement('canvas');
+        var sx=image.width/q.view.w,sy=image.height/q.view.h,b=q.box;out=document.createElement('canvas');
         out.width=Math.ceil(b.width*sx);out.height=Math.ceil(b.height*sy);
         var c=out.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,out.width,out.height);c.save();
         questionPath(c,q.points,b.x,b.y,sx,sy);c.clip('evenodd');
-        c.drawImage(image,-b.x*sx,-b.y*sy);c.restore();
-        var result=out.toDataURL('image/png').split(',')[1];out.width=0;out.height=0;
+        c.drawImage(image,-b.x*sx,-b.y*sy);
+        c.drawImage(lock.ink,-b.x*sx,-b.y*sy,image.width,image.height);c.restore();
+        var result=out.toDataURL('image/png').split(',')[1];
         if(result.length>4000000)throw new Error('영역이 너무 커요. 더 작게 지정해 주세요.');
         questionReply(command.nonce,{image:result});
     } catch(e) {
       if(captureLock===lock)questionReply(command.nonce,{error:image ? e.message : '영역 이미지를 준비하지 못했어요.'});
-    } finally {if(image)image.close();}
+    } finally {if(image)image.close();if(out){out.width=0;out.height=0;}}
   }
 `;

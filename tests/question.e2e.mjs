@@ -32,28 +32,48 @@ try {
   await page.evaluate(()=>{window.messages=[];window.ReactNativeWebView={postMessage:raw=>window.messages.push(JSON.parse(raw))};});
   await page.evaluate(INK_SCRIPT);
   const ink={id:'original',tool:'pen',color:'#315de8',width:4,anchor:null,points:[{x:110,y:100,pressure:.5},{x:260,y:100,pressure:.5}]};
-  await send({type:'restore',strokes:[ink]});
+  const highlight={...ink,id:'highlight',tool:'highlighter',color:'#ffc107',width:2,points:[{x:110,y:116,pressure:.5},{x:200,y:116,pressure:.5}]};
+  await send({type:'restore',strokes:[ink,highlight]});
   await send({type:'settings',settings:{tool:'question',color:'#315de8',width:3,penOnly:false}});
   await page.waitForTimeout(100);
   let q=await outline();
   assert.equal(await page.evaluate(()=>window.messages.some(m=>m.type==='change')),false,'outlines are not saved ink');
   await page.screenshot({path:'test-results/question/selected-region.png'});
+  let pageOnly;
   image=await captureQuestionImage({nonce:'capture-1',selectionId:q.id,signal:new AbortController().signal,
-    exchange,snapshot:async()=>{await page.waitForTimeout(40);return (await page.screenshot()).toString('base64');},release:command=>{void send(command);}});
+    exchange,snapshot:async()=>{
+      assert.equal(await page.locator('canvas').evaluate(el=>getComputedStyle(el).opacity),'0','native snapshot must exclude ink to prevent double compositing');
+      pageOnly=(await page.screenshot()).toString('base64');return pageOnly;
+    },release:command=>{void send(command);}});
   await writeFile('test-results/question/masked-region.png',Buffer.from(image,'base64'));
-  const pixels=await page.evaluate(async value=>{
+  const inspect=value=>page.evaluate(async value=>{
     const img=await createImageBitmap(new Blob([Uint8Array.from(atob(value),c=>c.charCodeAt(0))],{type:'image/png'}));const c=document.createElement('canvas');c.width=img.width;c.height=img.height;const ctx=c.getContext('2d');ctx.drawImage(img,0,0);img.close();
-    return {width:c.width,height:c.height,outside:[...ctx.getImageData(c.width-10,c.height-10,1,1).data],inside:[...ctx.getImageData(12,12,1,1).data],ink:[...ctx.getImageData(80,40,1,1).data]};
-  },image);
+    return {width:c.width,height:c.height,outside:[...ctx.getImageData(c.width-10,c.height-10,1,1).data],inside:[...ctx.getImageData(12,12,1,1).data],ink:[...ctx.getImageData(80,40,1,1).data],highlight:[...ctx.getImageData(80,72,1,1).data],originalInkPosition:[...ctx.getImageData(240,200,1,1).data]};
+  },value);
+  const pixels=await inspect(image);
   assert.equal(pixels.width,800);assert.equal(pixels.height,600);
   assert.deepEqual(pixels.outside,[255,255,255,255],'outside freehand polygon must be white');
   assert.deepEqual(pixels.inside,[220,60,50,255],'the selection highlight must not be captured');
   assert.equal(pixels.ink[2]>pixels.ink[0],true,'original ink must remain in captured image');
+  assert.deepEqual((await inspect(pageOnly)).originalInkPosition,[220,60,50,255],'raw native-equivalent snapshot has no ink');
+  for(const [index,value] of [230,100,37,255].entries())assert.ok(Math.abs(pixels.highlight[index]-value)<=1,'highlighter must be composited exactly once');
+  await expect(page.locator('canvas')).toHaveCSS('opacity','1');
+
+  // Cancellation before the paint acknowledgement cannot leave invisible ink
+  // or emit a stale ready response. A snapshot failure must also restore ink.
+  await page.evaluate(commandScript({type:'questionCapture',nonce:'cancel-before-ready',selectionId:q.id})+'\n'+commandScript({type:'questionClear'}));
+  await page.waitForTimeout(60);
+  await expect(page.locator('canvas')).toHaveCSS('opacity','1');
+  assert.equal(await page.evaluate(()=>window.messages.some(m=>m.nonce==='cancel-before-ready'&&m.ready)),false);
+  q=await outline();
+  await assert.rejects(captureQuestionImage({nonce:'snapshot-failure',selectionId:q.id,signal:new AbortController().signal,
+    exchange,snapshot:async()=>{throw new Error('snapshot unavailable');},release:command=>{void send(command);}}),/snapshot unavailable/);
+  await expect(page.locator('canvas')).toHaveCSS('opacity','1');
 
   await send({type:'questionRelease',nonce:'capture-1'});
   await page.evaluate(()=>scrollTo(0,100));await expect.poll(selection).toBeNull();
   await page.evaluate(()=>scrollTo(0,0));q=await outline();
-  await send({type:'questionCapture',nonce:'changed',selectionId:q.id});
+  await exchange({type:'questionCapture',nonce:'changed',selectionId:q.id});
   await page.evaluate(()=>{document.getElementById('sample').textContent='본문이 바뀜';});
   await assert.rejects(exchange({type:'questionMask',nonce:'changed',image}),/화면이 바뀌었어요/);
   await send({type:'questionRelease',nonce:'changed'});
@@ -86,6 +106,43 @@ try {
   });
   assert.equal(await selection(),null);
   await send({type:'settings',settings:{tool:'pen',color:'#315de8',width:3,penOnly:false}});
+
+  // Handwritten 7 + 5 = ? enters through actual Android pen packets, while
+  // the printed page asks a different question. Keep this synthetic fixture
+  // available for optional live model checks; production questions are unsaved.
+  await page.evaluate(()=>{
+    document.body.style.background='#fff';
+    const sample=document.getElementById('sample');sample.textContent='인쇄된 질문: 1 + 1은?';sample.style.cssText='position:absolute;left:100px;top:105px;width:300px;background:#f0f0f0';
+  });
+  const handwriting=[
+    [[125,200],[153,200],[137,240]],
+    [[177,208],[177,233]],[[165,220],[189,220]],
+    [[230,200],[204,200],[202,218],[220,216],[230,222],[230,234],[220,241],[204,238]],
+    [[250,213],[275,213]],[[250,227],[275,227]],
+    [[295,208],[300,201],[313,200],[322,206],[322,215],[310,223],[309,230]],[[309,240]],
+  ];
+  await page.evaluate(strokes=>{
+    strokes.forEach((points,index)=>{
+      const packet=(type,p,start=false,end=false)=>window.__sketchBrowserInk.nativeInput({stream:100+index,start,end,width:1600,height:1200,events:[{kind:'pen',id:0,type,x:p[0]*2,y:p[1]*2,pressure:.65,pressed:false}]});
+      packet('down',points[0],true);for(const p of points.slice(1))packet('move',p);packet('up',points.at(-1),false,true);
+    });
+  },handwriting);
+  assert.equal(await page.evaluate(()=>window.messages.filter(m=>m.type==='change').length),handwriting.length);
+  await send({type:'settings',settings:{tool:'question',color:'#315de8',width:3,penOnly:false}});
+  await page.waitForTimeout(80);q=await outline([[80,80],[480,80],[480,330],[80,330],[80,80]]);
+  const handwrittenImage=await captureQuestionImage({nonce:'handwritten',selectionId:q.id,signal:new AbortController().signal,
+    exchange,snapshot:async()=>{
+      await page.screenshot({path:'test-results/question/printed-only.png',clip:{x:80,y:80,width:400,height:250}});
+      return (await page.screenshot()).toString('base64');
+    },release:command=>{void send(command);}});
+  await writeFile('test-results/question/handwritten-question.png',Buffer.from(handwrittenImage,'base64'));
+  const handwritingPixel=await page.evaluate(async value=>{
+    const bitmap=await createImageBitmap(new Blob([Uint8Array.from(atob(value),c=>c.charCodeAt(0))],{type:'image/png'}));
+    const c=document.createElement('canvas');c.width=bitmap.width;c.height=bitmap.height;const ctx=c.getContext('2d');ctx.drawImage(bitmap,0,0);bitmap.close();
+    return [...ctx.getImageData(180,280,1,1).data];
+  },handwrittenImage);
+  assert.ok(handwritingPixel[2]>handwritingPixel[0]+50,'native pen handwriting must survive composition');
+  await expect(page.locator('canvas')).toHaveCSS('opacity','1');
 
   // Real question endpoint + real UI, with a simulated model response only.
   let result={status:'answer',answer:'1 + 1은 2입니다.'},fail=false,requests=0,delay=0;
