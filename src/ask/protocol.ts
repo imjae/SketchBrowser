@@ -12,6 +12,25 @@ export type QuestionMessage = {
   selection: QuestionSelection | null; notice?: string;
 };
 
+export function isQuestionPage(value: string): boolean {
+  try { const url = new URL(value); return url.origin === AUTHOR_ORIGIN && url.pathname === QUESTION_PATH; }
+  catch { return false; }
+}
+
+export function parseQuestionPanelMessage(raw: string, source: string): {type:'sketch-question-ready'} | {type:'sketch-question-received';id:string} | null {
+  if(raw.length>1000)return null;
+  try {
+    const url=new URL(source);
+    // Android WebMessageListener reports only sourceOrigin; legacy/iOS reports
+    // the full page URL. Injection separately checks the exact live page path.
+    if(url.origin!==AUTHOR_ORIGIN || !['/',QUESTION_PATH].includes(url.pathname))return null;
+    const message=JSON.parse(raw);
+    if(message.type==='sketch-question-ready')return {type:message.type};
+    if(message.type==='sketch-question-received' && typeof message.id==='string' && /^[0-9a-f-]{36}$/i.test(message.id))return {type:message.type,id:message.id};
+  }catch{}
+  return null;
+}
+
 export function parseQuestionMessage(raw: string): QuestionMessage | null {
   if (raw.length > 3000) return null;
   try {

@@ -1,7 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { captureQuestionImage } from '../src/ask/capture';
-import { parseQuestionMessage, questionTransferScript } from '../src/ask/protocol';
+import { parseQuestionMessage, questionTransferScript, isQuestionPage, parseQuestionPanelMessage } from '../src/ask/protocol';
+import { AUTHOR_ORIGIN } from '../src/review/transfer';
+
+test('question panel accepts Android source origins and legacy page URLs while keeping the image page guarded',()=>{
+  const ready=JSON.stringify({type:'sketch-question-ready'});
+  for(const source of [AUTHOR_ORIGIN,AUTHOR_ORIGIN+'/',AUTHOR_ORIGIN+'/sketch/ask/'])assert.equal(parseQuestionPanelMessage(ready,source)?.type,'sketch-question-ready');
+  for(const source of ['https://github.com',AUTHOR_ORIGIN+'/auth/callback',AUTHOR_ORIGIN+'/sketch/',AUTHOR_ORIGIN+'.attacker.test/sketch/ask/','null'])assert.equal(parseQuestionPanelMessage(ready,source),null);
+  assert.equal(isQuestionPage(AUTHOR_ORIGIN),false);assert.equal(isQuestionPage(AUTHOR_ORIGIN+'/sketch/ask/'),true);
+  const id='12345678-1234-1234-1234-123456789abc';
+  assert.deepEqual(parseQuestionPanelMessage(JSON.stringify({type:'sketch-question-received',id}),AUTHOR_ORIGIN),{type:'sketch-question-received',id});
+  assert.equal(parseQuestionPanelMessage(JSON.stringify({type:'sketch-question-received',id:'bad'}),AUTHOR_ORIGIN),null);
+});
 
 test('question bridge accepts bounded regions and rejects malformed page messages', () => {
   const m={channel:'sketch-question',documentId:'doc',selection:{id:'region',documentId:'doc',bounds:{x:.1,y:.2,width:.4,height:.3}}};

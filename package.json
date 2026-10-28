@@ -2,7 +2,7 @@
   "name": "sketch-browser",
   "description": "A tablet browser with persistent, page-specific ink annotations.",
   "private": true,
-  "version": "0.2.3",
+  "version": "0.2.4",
   "main": "index.ts",
   "dependencies": {
     "@expo/metro-runtime": "~57.0.17",
@@ -46,7 +46,7 @@
     "review:start": "node runner/launch.mjs",
     "review:stop": "node runner/launch.mjs --stop",
     "test:review": "node --import tsx tests/review.e2e.mjs && node --import tsx tests/portfolio-review.e2e.mjs",
-    "test:question": "node --import tsx tests/question.e2e.mjs && node tests/question-relay.e2e.mjs",
+    "test:question": "node --import tsx tests/question.e2e.mjs && node tests/question-relay.e2e.mjs && node --import tsx tests/question-bridge.e2e.mjs",
     "question:start": "node runner/launch.mjs --question",
     "question:stop": "node runner/launch.mjs --question --stop"
   },

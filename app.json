@@ -2,7 +2,7 @@
   "expo": {
     "name": "SketchBrowser",
     "slug": "sketch-browser",
-    "version": "0.2.3",
+    "version": "0.2.4",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "com.sketchbrowser.app",
-      "versionCode": 9,
+      "versionCode": 10,
       "adaptiveIcon": {
         "backgroundColor": "#48694f",
         "foregroundImage": "./assets/android-icon-foreground.png",
