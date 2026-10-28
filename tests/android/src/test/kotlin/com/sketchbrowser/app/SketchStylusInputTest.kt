@@ -17,7 +17,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], manifest = Config.NONE, packageName = "com.sketchbrowser.inputtests")
+// Use the Gradle-provided manifest and resources for native ID lookup.
+@Config(sdk = [34])
 class SketchStylusInputTest {
   private lateinit var view: RecordingWebView
   private lateinit var input: SketchStylusInput
