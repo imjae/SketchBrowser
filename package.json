@@ -2,7 +2,7 @@
   "name": "sketch-browser",
   "description": "A tablet browser with persistent, page-specific ink annotations.",
   "private": true,
-  "version": "0.2.2",
+  "version": "0.2.3",
   "main": "index.ts",
   "dependencies": {
     "@expo/metro-runtime": "~57.0.17",
@@ -26,7 +26,8 @@
     "@types/node": "^26.6.5",
     "@types/react": "~19.2.2",
     "tsx": "^4.23.15",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "ws": "8.22.0"
   },
   "scripts": {
     "start": "expo start",
@@ -36,7 +37,7 @@
     "typecheck": "tsc --noEmit",
     "review:check": "node --import tsx scripts/check-blog-link.ts",
     "test": "node --import tsx --test tests/*.test.ts",
-    "test:e2e": "node --import tsx tests/browser.e2e.mjs && node --import tsx tests/interaction.e2e.mjs && node --import tsx tests/pen-button.e2e.mjs && node --import tsx tests/native-stylus.e2e.mjs",
+    "test:e2e": "node --import tsx tests/browser.e2e.mjs && node --import tsx tests/interaction.e2e.mjs && node --import tsx tests/pen-button.e2e.mjs && node --import tsx tests/native-stylus.e2e.mjs && node --import tsx tests/question-app.e2e.mjs",
     "export:android": "expo export --platform android",
     "export:web": "expo export --platform web",
     "prebuild:android": "expo prebuild --platform android --no-install",
@@ -44,7 +45,10 @@
     "review:runner": "node runner/main.mjs",
     "review:start": "node runner/launch.mjs",
     "review:stop": "node runner/launch.mjs --stop",
-    "test:review": "node --import tsx tests/review.e2e.mjs && node --import tsx tests/portfolio-review.e2e.mjs"
+    "test:review": "node --import tsx tests/review.e2e.mjs && node --import tsx tests/portfolio-review.e2e.mjs",
+    "test:question": "node --import tsx tests/question.e2e.mjs && node tests/question-relay.e2e.mjs",
+    "question:start": "node runner/launch.mjs --question",
+    "question:stop": "node runner/launch.mjs --question --stop"
   },
   "packageManager": "pnpm@11.25.0"
 }

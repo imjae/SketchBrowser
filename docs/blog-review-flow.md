@@ -19,6 +19,8 @@ PC가 꺼져 있어도 전송한 요청과 업로드한 미리보기, 승인은 
 
 ## PC 설정과 실행
 
+별도 기능인 **질문 영역 → 질문하기**는 [일회용 영역 질문](quick-question.md)을 따른다. 같은 GitHub 소유자 로그인을 사용하고 Worker가 현재 연결된 개인 PC의 별도 질문 실행기로 이미지를 중계한다. `pnpm question:start`로 켜며 Codex의 ChatGPT 구독 로그인을 사용한다. 수정 요청 대기열에는 저장하지 않고 패널을 닫으면 폐기한다. 기존 APK 0.2.2에는 포함되지 않는다.
+
 Windows, PowerShell 7, Node 24, Git, 설치된 Chrome, 로그인된 Codex CLI와 Git 자격 증명, 블로그의 npm 의존성이 필요하다. 이 저장소는 별도 버전의 Codex CLI를 의존성으로 고정한다.
 
 ```powershell

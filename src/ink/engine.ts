@@ -1,3 +1,5 @@
+import { QUESTION_SCRIPT } from '../ask/engine';
+
 // A self-contained script shared by the Android WebView and the local web preview.
 // Keep it as source text: serializing a transpiled function can capture Babel helpers.
 export const INK_SCRIPT = String.raw`
@@ -20,6 +22,7 @@ export const INK_SCRIPT = String.raw`
   canvas.style.cssText = 'position:fixed;left:0;top:0;z-index:2147483647;pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none;background:transparent;margin:0;padding:0;border:0;';
   document.documentElement.appendChild(canvas);
   var context = canvas.getContext('2d');
+  ${QUESTION_SCRIPT}
 
   function newId() { return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 13); }
   function route() {
@@ -126,6 +129,7 @@ export const INK_SCRIPT = String.raw`
     var rect = canvas.getBoundingClientRect(), cache = new Map();
     for (var i = 0; i < strokes.length; i++) drawStroke(strokes[i], rect, cache);
     if (active) drawStroke(active.stroke, rect, cache);
+    questionDraw();
   }
   function point(event) {
     return { x: Math.round((event.clientX + scrollX) * 10) / 10,
@@ -164,11 +168,15 @@ export const INK_SCRIPT = String.raw`
   function pointerDown(event) {
     if (captureLock) return;
     var tool = event.pointerType === 'pen' && penButtonDown ? 'eraser' : settings.tool;
-    if (!hydrated || tool === 'browse' || touchNavigation || active || erasedBefore || !event.isPrimary ||
+    if (!hydrated || tool === 'browse' || touchNavigation || active || questionActive || erasedBefore || !event.isPrimary ||
       (event.pointerType === 'mouse' && event.button !== 0) || (settings.penOnly && event.pointerType !== 'pen')) return;
     event.preventDefault(); event.stopPropagation();
     if (!event.nativeStylus) canvas.setPointerCapture(event.pointerId);
     limited = false;
+    if (tool === 'question') {
+      if (event.pointerType !== 'touch') questionDown(event);
+      return;
+    }
     if (tool === 'eraser') { erasedBefore = { strokes: strokes, pointerId: event.pointerId, last: point(event) }; eraseAt(point(event)); return; }
     var count = pointCount();
     if (strokes.length >= MAX_STROKES || count >= MAX_POINTS - 2) { message('limit'); return; }
@@ -179,6 +187,7 @@ export const INK_SCRIPT = String.raw`
     requestDraw();
   }
   function pointerMove(event) {
+    if (questionActive) { questionMove(event); return; }
     if (erasedBefore && erasedBefore.pointerId === event.pointerId) { event.preventDefault(); eraseAlong(event); return; }
     if (!active || active.pointerId !== event.pointerId) return;
     event.preventDefault(); event.stopPropagation();
@@ -196,6 +205,7 @@ export const INK_SCRIPT = String.raw`
     requestDraw();
   }
   function finish(event, cancelled) {
+    questionFinish(event, cancelled);
     if (active && (!event || active.pointerId === event.pointerId)) {
       if (event && !cancelled) pointerMove(event);
       var stroke = active.stroke; active = null;
@@ -236,7 +246,7 @@ export const INK_SCRIPT = String.raw`
     event.preventDefault(); event.stopPropagation();
     ignorePenContextUntil = Date.now() + 350;
     if (!contact) finish(null, cancelled);
-    else if (!active && !erasedBefore) pointerDown(event);
+    else if (!active && !questionActive && !erasedBefore) pointerDown(event);
     else pointerMove(event);
   }
   function belowCanvas(x, y) {
@@ -352,7 +362,7 @@ export const INK_SCRIPT = String.raw`
         ignorePenContextUntil = Date.now() + 350;
         if (type === 'leave') { if (nativePenContact) finish(null, true); nativePenContact = false; }
         if (nativeOwned && nativePenContact && !touchNavigation) {
-          if (!active && !erasedBefore) pointerDown(event); else pointerMove(event);
+          if (!active && !questionActive && !erasedBefore) pointerDown(event); else pointerMove(event);
         }
       } else if (nativeOwned) {
         if (type === 'down') {
@@ -400,6 +410,10 @@ export const INK_SCRIPT = String.raw`
   function receive(command, expectedId) {
     if (expectedId && expectedId !== documentId) return;
     switch (command.type) {
+      case 'questionClear': questionRelease(captureLock && captureLock.nonce); questionClear(); break;
+      case 'questionCapture': questionCapture(command); break;
+      case 'questionMask': questionMask(command); break;
+      case 'questionRelease': questionRelease(command.nonce); break;
       case 'capture':
         if (!hydrated || captureLock || !/^[a-zA-Z0-9-]{1,100}$/.test(command.nonce)) return;
         if (document.body.dataset.sketchDirty === 'true') {
@@ -441,6 +455,7 @@ export const INK_SCRIPT = String.raw`
       case 'settings':
         // Acknowledge an automatic tool change without splitting its first stroke.
         var next = command.settings;
+        if (next.tool !== 'question' && settings.tool === 'question') questionClear();
         if (next.tool !== settings.tool || next.color !== settings.color || next.width !== settings.width || next.penOnly !== settings.penOnly) finish(null, false);
         settings = next; updateInput(); break;
       case 'undo':
@@ -459,6 +474,7 @@ export const INK_SCRIPT = String.raw`
     var next = route();
     if (next === lastRoute) return;
     lastRoute = next; active = null; erasedBefore = null; resetNativeInput(true);
+    questionRelease(captureLock && captureLock.nonce); questionClear();
     strokes = []; undo = []; redo = []; hydrated = false; revision = 0; documentId = newId();
     updateInput(); requestDraw(); message('ready');
   }
@@ -469,11 +485,11 @@ export const INK_SCRIPT = String.raw`
   window.addEventListener('popstate', onRoute); window.addEventListener('hashchange', onRoute);
   // A restored WebView document retains its ink and bridge; it must re-handshake.
   window.addEventListener('pageshow', function (e) { if (e.persisted) { documentId = newId(); hydrated = false; updateInput(); message('ready'); } });
-  window.addEventListener('scroll', requestDraw, { passive: true, capture: true });
+  window.addEventListener('scroll', function(){questionVersion++;requestDraw();}, { passive: true, capture: true });
   window.addEventListener('resize', requestDraw);
   if (window.visualViewport) { visualViewport.addEventListener('resize', requestDraw); visualViewport.addEventListener('scroll', requestDraw); }
-  if (window.ResizeObserver) new ResizeObserver(requestDraw).observe(document.body);
-  if (window.MutationObserver) new MutationObserver(requestDraw).observe(document.body, { childList: true, subtree: true, characterData: true });
+  if (window.ResizeObserver) new ResizeObserver(function(){questionVersion++;requestDraw();}).observe(document.body);
+  if (window.MutationObserver) new MutationObserver(function(){questionVersion++;requestDraw();}).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
   draw(); message('ready');
 })(); true;
 `;

@@ -1,4 +1,4 @@
-export type Tool = 'browse' | 'pen' | 'underline' | 'highlighter' | 'eraser';
+export type Tool = 'browse' | 'pen' | 'underline' | 'highlighter' | 'eraser' | 'question';
 export type InkSettings = { tool: Tool; color: string; width: number; penOnly: boolean };
 export type Point = { x: number; y: number; pressure: number };
 export type Anchor = {
@@ -40,6 +40,10 @@ export type InkCommand =
   | { type: 'restore'; strokes: Stroke[]; sourceHash?: string | null }
   | { type: 'settings'; settings: InkSettings }
   | { type: 'capture' | 'captureCheck' | 'captureRelease'; nonce: string }
+  | { type: 'questionClear' }
+  | { type: 'questionCapture'; nonce: string; selectionId: string }
+  | { type: 'questionMask'; nonce: string; image: string }
+  | { type: 'questionRelease'; nonce: string }
   | { type: 'undo' | 'redo' | 'flush' };
 
 export const DEFAULT_SETTINGS: InkSettings = { tool: 'browse', color: '#315de8', width: 3, penOnly: false };

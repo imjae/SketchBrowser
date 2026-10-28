@@ -12,6 +12,8 @@ import { randomUUID } from 'expo-crypto';
 import { ReviewPanel, saveTransfer } from './src/review/ReviewPanel';
 import { reviewBlockReason } from './src/review/availability';
 import appConfig from './app.json';
+import { useQuestion } from './src/ask/useQuestion';
+import { QuestionPanel } from './src/ask/QuestionPanel';
 
 const GREEN = '#48694f';
 const COLORS = ['#315de8', '#343b37', '#d65c53', '#5f8965', '#e6bc42'];
@@ -21,6 +23,7 @@ const TOOLS: { tool: Tool; label: string; icon: IconName }[] = [
   { tool: 'underline', label: '밑줄', icon: 'underline' },
   { tool: 'highlighter', label: '형광펜', icon: 'highlighter' },
   { tool: 'eraser', label: '지우개', icon: 'eraser' },
+  { tool: 'question', label: '질문 영역', icon: 'note' },
 ];
 
 function IconButton({ name, label, onPress, disabled, active }: { name: IconName; label: string; onPress(): void; disabled?: boolean; active?: boolean }) {
@@ -50,6 +53,8 @@ function SketchBrowser() {
   const [addressError, setAddressError] = useState<string | null>(null);
   const onInputTool = useCallback((tool: 'browse' | 'pen') => setSettings((previous) => ({ ...previous, tool })), []);
   const notes = useNotebook(browser, settings, onInputTool);
+  const question = useQuestion(browser);
+  const [pageSize, setPageSize] = useState({width:0,height:0});
   const [reviewOpen, setReviewOpen] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const reviewBlock = reviewBlockReason(navigation.url, navigation.loading, notes.status === 'loading');
@@ -239,7 +244,24 @@ function SketchBrowser() {
             <Pressable accessibilityRole="button" onPress={() => { if (notes.error) notes.retrySave(); else if (addressError) setAddressError(null); else browser.current?.reload(); }} style={s.retryButton}><Text style={s.retryText}>{addressError ? '닫기' : '다시 시도'}</Text></Pressable></View>}
           {!contentFullscreen && notes.limit && <View style={s.errorBar}><Text style={s.errorText}>이 페이지의 필기 용량에 도달했어요. 다른 페이지에 이어 쓰거나, 필요 없는 획을 지워 주세요.</Text></View>}
           {!contentFullscreen && Platform.OS === 'web' && <View style={s.previewBar}><Text style={s.previewText}>웹 미리보기 · 연습 페이지의 필기를 체험할 수 있어요. 외부 웹사이트는 Android 앱에서 열어 주세요.</Text></View>}
-          <View style={s.page}><BrowserSurface ref={browser} {...source} onMessage={notes.onMessage} onNavigation={onNavigation} onDocumentLoading={notes.onDocumentLoading} onError={setPageError} /></View>
+          <View style={s.page} onLayout={e => setPageSize(e.nativeEvent.layout)}>
+            <BrowserSurface ref={browser} {...source}
+              onMessage={(raw,url) => { question.onMessage(raw,url); void notes.onMessage(raw,url); }}
+              onNavigation={onNavigation} onDocumentLoading={() => { question.loading(); notes.onDocumentLoading(); }} onError={setPageError} />
+            {settings.tool==='question' && !question.selection && !question.panel && <View pointerEvents="none" style={s.questionHint}>
+              <Text style={s.questionHintText}>{question.notice || '질문할 내용을 펜으로 한 바퀴 둘러싸 주세요.'}</Text>
+            </View>}
+            {question.selection && !question.panel && <View style={[s.questionActions,{
+              left:Math.max(8,Math.min(pageSize.width-244,question.selection.bounds.x*pageSize.width)),
+              top:Math.max(8,Math.min(pageSize.height-64,(question.selection.bounds.y+question.selection.bounds.height)*pageSize.height+8)),
+            }]}>
+              <Pressable accessibilityRole="button" accessibilityLabel="질문하기" disabled={question.capturing}
+                onPress={question.ask} style={[s.questionAsk,question.capturing && s.disabled]}>
+                <Text style={{color:'#fff',fontSize:15,fontWeight:'600'}}>{question.capturing?'영역 준비 중…':'질문하기'}</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="질문 영역 취소" onPress={question.close} style={s.questionCancel}><Text style={{color:GREEN,fontSize:14}}>취소</Text></Pressable>
+            </View>}
+          </View>
           {!contentFullscreen && <View style={s.statusBar}>
             <View style={s.saveStatus}>{!webUnavailable && (notes.status === 'saving' || notes.status === 'loading') ? <ActivityIndicator size={12} color={GREEN} /> : <Icon name={notes.status === 'saved' ? 'check' : 'save'} size={13} color={notes.status === 'error' ? '#c47943' : GREEN} />}
               <Text accessibilityLiveRegion="polite" style={s.statusText}>{webUnavailable ? 'Android 앱에서 열어 주세요' : saveLabels[notes.status]}</Text></View>
@@ -256,10 +278,16 @@ function SketchBrowser() {
       </Pressable>}
     </View>
     <ReviewPanel visible={reviewOpen} onClose={() => setReviewOpen(false)} />
+    {question.panel && <QuestionPanel {...question.panel} onClose={question.close} />}
   </SafeAreaView>;
 }
 
 const s = StyleSheet.create({
+  questionHint: {position:'absolute',top:10,left:12,right:12,alignItems:'center'},
+  questionHintText: {backgroundColor:'#f5faf0f2',color:'#375b42',fontSize:13,lineHeight:21,paddingHorizontal:12,paddingVertical:8,borderRadius:8},
+  questionActions: {position:'absolute',flexDirection:'row',gap:6,padding:4,borderRadius:10,backgroundColor:'#fbfaf6',borderWidth:1,borderColor:'#bfd3c4',elevation:5},
+  questionAsk: {minHeight:48,minWidth:132,paddingHorizontal:16,alignItems:'center',justifyContent:'center',backgroundColor:GREEN,borderRadius:7},
+  questionCancel: {minHeight:48,minWidth:64,alignItems:'center',justifyContent:'center'},
   root: { flex: 1, backgroundColor: '#edf0e8' },
   libraryButton: { height: 40, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: '#dce4d4', alignItems: 'center', flexDirection: 'row', gap: 7 }, libraryButtonActive: { backgroundColor: '#eaf0e4' }, libraryButtonText: { fontSize: 12, color: GREEN, fontWeight: '600' },
   foldButton: { height: 40, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#dce4d4', alignItems: 'center', flexDirection: 'row', gap: 5 }, compactControl: { paddingHorizontal: 8, gap: 3 },

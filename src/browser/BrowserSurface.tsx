@@ -8,11 +8,13 @@ import { INK_SCRIPT, commandScript } from '../ink/engine';
 import { isDemoUrl } from '../urls';
 import { demoHtml } from './demo';
 import { BrowserHandle, BrowserProps } from './types';
+import { captureQuestionImage } from '../ask/capture';
 
 export const BrowserSurface = forwardRef<BrowserHandle, BrowserProps>(function BrowserSurface(props, ref) {
   const webview = useRef<WebView>(null);
   const captureView = useRef<View>(null);
   const receiver = useRef<((raw: string, url: string) => void) | null>(null);
+  const captureBusy = useRef(false);
   const loadedUrl = useRef(props.url);
   const demo = isDemoUrl(props.url);
   const source = useMemo(() => demo
@@ -24,8 +26,43 @@ export const BrowserSurface = forwardRef<BrowserHandle, BrowserProps>(function B
     back: () => webview.current?.goBack(),
     forward: () => webview.current?.goForward(),
     reload: () => webview.current?.reload(),
+    captureQuestion: async (selectionId, signal) => {
+      if (captureBusy.current) throw new Error('이미 영역을 준비하고 있어요.');
+      captureBusy.current = true;
+      const nonce = randomUUID();
+      try {
+        return await captureQuestionImage({ nonce, selectionId, signal,
+          exchange: (command, abort) => new Promise((resolve, reject) => {
+            let timer: ReturnType<typeof setTimeout>;
+            const clean = () => { clearTimeout(timer); abort.removeEventListener('abort', cancelled); if (receiver.current === receive) receiver.current = null; };
+            const cancelled = () => { clean(); reject(new Error('질문을 취소했어요.')); };
+            const receive = (raw: string) => {
+              if (raw.length > 4_001_000) return;
+              try {
+                const m = JSON.parse(raw);
+                if (m.channel !== 'sketch-question-capture' || m.nonce !== nonce) return;
+                clean();
+                if (m.error) reject(new Error(typeof m.error === 'string' ? m.error.slice(0,200) : '영역을 다시 지정해 주세요.'));
+                else resolve(m);
+              } catch { /* Ignore unrelated page messages. */ }
+            };
+            receiver.current = receive;
+            timer = setTimeout(() => { clean(); reject(new Error('영역 준비가 지연됐어요. 다시 시도해 주세요.')); }, 7000);
+            abort.addEventListener('abort', cancelled, { once: true });
+            if (abort.aborted) { cancelled(); return; }
+            webview.current?.injectJavaScript(commandScript(command));
+          }),
+          snapshot: async () => {
+            await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+            return captureRef(captureView, { format: 'png', result: 'base64', width: 1600 });
+          },
+          release: command => webview.current?.injectJavaScript(commandScript(command)),
+        });
+      } finally { captureBusy.current = false; }
+    },
     captureReview: async () => {
-      if (receiver.current) throw new Error('이미 화면을 준비하고 있어요.');
+      if (captureBusy.current) throw new Error('이미 화면을 준비하고 있어요.');
+      captureBusy.current = true;
       const nonce = randomUUID();
       const ask = <T,>(type: 'capture' | 'captureCheck', parse: (raw: string, url: string) => T | null) => new Promise<T>((resolve, reject) => {
         const timer = setTimeout(() => { receiver.current = null; reject(new Error('화면 캡처가 지연됐어요. 다시 시도해 주세요.')); }, 7000);
@@ -53,6 +90,7 @@ export const BrowserSurface = forwardRef<BrowserHandle, BrowserProps>(function B
         if (image.length > 4_000_000) throw new Error('화면 이미지가 커요. 더 작은 영역을 화면에 표시해 주세요.');
         return { context, image };
       } finally {
+        captureBusy.current = false;
         receiver.current = null;
         webview.current?.injectJavaScript(commandScript({ type: 'captureRelease', nonce }));
       }

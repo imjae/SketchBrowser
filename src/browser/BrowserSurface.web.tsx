@@ -41,6 +41,7 @@ export const BrowserSurface = forwardRef<BrowserHandle, BrowserProps>(function B
     forward: () => undefined,
     reload: () => setReload((value) => value + 1),
     captureReview: async () => { throw new Error('필기 전송은 Android 앱에서 사용할 수 있어요.'); },
+    captureQuestion: async () => { throw new Error('영역 이미지로 질문하기는 Android 앱에서 사용할 수 있어요.'); },
   }), []);
 
   if (!demo) return <View style={styles.empty}>

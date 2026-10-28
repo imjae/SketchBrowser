@@ -7,6 +7,7 @@ import {spawnSync} from 'node:child_process';
 const config=JSON.parse(await readFile(join(homedir(),'.sketch-browser-runner/config.json'),'utf8'));
 const args=['-NoProfile','-NonInteractive','-File',fileURLToPath(new URL('./start.ps1',import.meta.url))];
 if(process.argv.includes('--stop'))args.push('-Stop');
+if(process.argv.includes('--question'))args.push('-Question');
 const result=spawnSync(config.powershell||'pwsh.exe',args,{stdio:'inherit',windowsHide:true});
 if(result.error)throw result.error;
 process.exitCode=result.status??1;

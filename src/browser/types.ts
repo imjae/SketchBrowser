@@ -7,6 +7,7 @@ export type BrowserHandle = {
   forward(): void;
   reload(): void;
   captureReview(): Promise<{ context: CaptureContext; image: string }>;
+  captureQuestion(selectionId: string, signal: AbortSignal): Promise<string>;
 };
 export type Navigation = { url: string; canGoBack: boolean; canGoForward: boolean; loading: boolean };
 export type BrowserProps = {

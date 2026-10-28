@@ -1,0 +1,118 @@
+import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { chromium, expect } from '@playwright/test';
+import { INK_SCRIPT, commandScript } from '../src/ink/engine.ts';
+import { captureQuestionImage } from '../src/ask/capture.ts';
+import { handleQuestionRequest, SketchQuestions } from '../../imjae.github.io/server/sketch-question.mjs';
+
+await mkdir('test-results/question',{recursive:true});
+const browser=await chromium.launch({channel:process.env.PLAYWRIGHT_CHANNEL||'chrome',headless:true});
+const context=await browser.newContext({viewport:{width:800,height:600},deviceScaleFactor:2});
+const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+let image;
+const send=command=>page.evaluate(commandScript(command));
+const selection=()=>page.evaluate(()=>window.messages.filter(m=>m.channel==='sketch-question').at(-1)?.selection);
+async function outline(points=[[80,80],[480,80],[80,380],[80,80]]) {
+  await page.mouse.move(...points[0]);await page.mouse.down();
+  for(const p of points.slice(1))await page.mouse.move(...p,{steps:12});
+  await page.mouse.up();
+  await expect.poll(selection).not.toBeNull();
+  return selection();
+}
+const exchange=async(command)=>{
+  await send(command);
+  await expect.poll(()=>page.evaluate(nonce=>window.messages.filter(m=>m.channel==='sketch-question-capture'&&m.nonce===nonce).at(-1),command.nonce)).toBeTruthy();
+  if(command.type==='questionMask')await expect.poll(()=>page.evaluate(nonce=>{const m=window.messages.filter(m=>m.channel==='sketch-question-capture'&&m.nonce===nonce).at(-1);return !!(m?.image||m?.error);},command.nonce)).toBe(true);
+  const m=await page.evaluate(nonce=>window.messages.filter(m=>m.channel==='sketch-question-capture'&&m.nonce===nonce).at(-1),command.nonce);
+  if(m.error)throw new Error(m.error);return m;
+};
+try {
+  await page.route('https://article.test/**',r=>r.fulfill({headers:{'Content-Security-Policy':"img-src 'none'"},contentType:'text/html; charset=utf-8',body:'<!doctype html><meta charset="utf-8"><style>body{margin:0;background:rgb(220,60,50);min-height:1800px;font:24px sans-serif}#sample{position:absolute;left:105px;top:110px;background:rgb(40,180,90);width:170px;padding:12px;color:#111}</style><p id="sample">질문: 1 + 1은?</p>'}));
+  await page.goto('https://article.test/read');
+  await page.evaluate(()=>{window.messages=[];window.ReactNativeWebView={postMessage:raw=>window.messages.push(JSON.parse(raw))};});
+  await page.evaluate(INK_SCRIPT);
+  const ink={id:'original',tool:'pen',color:'#315de8',width:4,anchor:null,points:[{x:110,y:100,pressure:.5},{x:260,y:100,pressure:.5}]};
+  await send({type:'restore',strokes:[ink]});
+  await send({type:'settings',settings:{tool:'question',color:'#315de8',width:3,penOnly:false}});
+  await page.waitForTimeout(100);
+  let q=await outline();
+  assert.equal(await page.evaluate(()=>window.messages.some(m=>m.type==='change')),false,'outlines are not saved ink');
+  await page.screenshot({path:'test-results/question/selected-region.png'});
+  image=await captureQuestionImage({nonce:'capture-1',selectionId:q.id,signal:new AbortController().signal,
+    exchange,snapshot:async()=>{await page.waitForTimeout(40);return (await page.screenshot()).toString('base64');},release:command=>{void send(command);}});
+  await writeFile('test-results/question/masked-region.png',Buffer.from(image,'base64'));
+  const pixels=await page.evaluate(async value=>{
+    const img=await createImageBitmap(new Blob([Uint8Array.from(atob(value),c=>c.charCodeAt(0))],{type:'image/png'}));const c=document.createElement('canvas');c.width=img.width;c.height=img.height;const ctx=c.getContext('2d');ctx.drawImage(img,0,0);img.close();
+    return {width:c.width,height:c.height,outside:[...ctx.getImageData(c.width-10,c.height-10,1,1).data],inside:[...ctx.getImageData(12,12,1,1).data],ink:[...ctx.getImageData(80,40,1,1).data]};
+  },image);
+  assert.equal(pixels.width,800);assert.equal(pixels.height,600);
+  assert.deepEqual(pixels.outside,[255,255,255,255],'outside freehand polygon must be white');
+  assert.deepEqual(pixels.inside,[220,60,50,255],'the selection highlight must not be captured');
+  assert.equal(pixels.ink[2]>pixels.ink[0],true,'original ink must remain in captured image');
+
+  await send({type:'questionRelease',nonce:'capture-1'});
+  await page.evaluate(()=>scrollTo(0,100));await expect.poll(selection).toBeNull();
+  await page.evaluate(()=>scrollTo(0,0));q=await outline();
+  await send({type:'questionCapture',nonce:'changed',selectionId:q.id});
+  await page.evaluate(()=>{document.getElementById('sample').textContent='본문이 바뀜';});
+  await assert.rejects(exchange({type:'questionMask',nonce:'changed',image}),/화면이 바뀌었어요/);
+  await send({type:'questionRelease',nonce:'changed'});
+  q=await outline();await page.setViewportSize({width:810,height:600});await expect.poll(selection).toBeNull();
+  await page.setViewportSize({width:800,height:600});
+  await page.evaluate(()=>{
+    const scroller=document.createElement('div');scroller.id='nested';scroller.style='position:absolute;left:550px;top:100px;width:150px;height:150px;overflow:auto';
+    scroller.innerHTML='<div style="height:500px">내부 스크롤 내용</div>';document.body.append(scroller);
+  });
+  await page.waitForTimeout(50);q=await outline();
+  await page.locator('#nested').evaluate(el=>{el.scrollTop=80;});await expect.poll(selection).toBeNull();
+  q=await outline();await page.locator('#sample').evaluate(el=>{el.style.transform='translateX(20px)';});await expect.poll(selection).toBeNull();
+
+  // Actual Android packet route: entering question mode must not auto-switch to pen.
+  const points=[[80,80],[280,80],[280,280],[80,280],[80,80]];
+  await page.evaluate(points=>{
+    let stream=1;const packet=(type,p,start=false,end=false)=>window.__sketchBrowserInk.nativeInput({stream,start,end,width:1600,height:1200,events:[{kind:'pen',id:0,type,x:p[0]*2,y:p[1]*2,pressure:.6,pressed:false}]});
+    packet('down',points[0],true);for(const p of points.slice(1))packet('move',p);packet('up',points.at(-1),false,true);
+  },points);
+  await expect.poll(selection).not.toBeNull();
+  assert.equal(await page.evaluate(()=>window.messages.some(m=>m.type==='change'||m.type==='pen')),false);
+  await send({type:'questionClear'});await expect.poll(selection).toBeNull();
+  // Open lines and touch/palm input must not produce a question selection.
+  await page.mouse.move(80,80);await page.mouse.down();await page.mouse.move(400,280,{steps:20});await page.mouse.up();
+  assert.equal(await selection(),null);
+  await page.evaluate(()=>{
+    const canvas=document.querySelector('canvas');
+    canvas.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerType:'touch',pointerId:21,clientX:100,clientY:100}));
+    canvas.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerType:'touch',pointerId:21,clientX:100,clientY:100}));
+  });
+  assert.equal(await selection(),null);
+  await send({type:'settings',settings:{tool:'pen',color:'#315de8',width:3,penOnly:false}});
+
+  // Real question endpoint + real UI, with a simulated model response only.
+  let result={status:'answer',answer:'1 + 1은 2입니다.'},fail=false,requests=0,delay=0;
+  const socket={readyState:1,send(raw){const m=JSON.parse(raw);if(m.type!=='question')return;
+    const output={type:'result',id:m.id,...(fail?{error:'failed'}:{result})};fail=false;
+    setTimeout(()=>hub.webSocketMessage(socket,JSON.stringify(output)),delay);
+  }};
+  const hub=new SketchQuestions({getWebSockets:()=>[socket]});
+  const env={ALLOWED_GITHUB_ID:'1',SKETCH_QUESTIONS:{idFromName:x=>x,get:()=>({fetch:r=>hub.fetch(r)})}};
+  await page.route('https://owner.test/**',async route=>{
+    const r=route.request(),headers=r.headers();if(r.method()==='POST')headers.origin='https://owner.test';
+    if(r.url().endsWith('/api/sketch/ask'))requests++;
+    hub.starts=[]; // This UI suite exercises more than the production minute quota.
+    const response=await handleQuestionRequest(new Request(r.url(),{method:r.method(),headers,body:r.postData()||undefined}),env,{ownerId:'1'});
+    await route.fulfill({status:response.status,headers:Object.fromEntries(response.headers),body:await response.text()}).catch(()=>{});
+  });
+  await page.addInitScript(()=>{window.nativeMessages=[];window.ReactNativeWebView={postMessage:raw=>window.nativeMessages.push(JSON.parse(raw))};});
+  const open=async()=>{await page.goto('https://owner.test/sketch/ask/');await page.evaluate(value=>window.receiveSketchQuestion(value),{id:crypto.randomUUID(),image});};
+  await open();await expect(page.locator('#answer')).toHaveText('1 + 1은 2입니다.');
+  assert.deepEqual(await page.evaluate(()=>({local:localStorage.length,session:sessionStorage.length})),{local:0,session:0});
+  await page.evaluate(value=>window.receiveSketchQuestion(value),{id:crypto.randomUUID(),image});assert.equal(requests,1,'repeated bridge readiness must not resubmit');
+  await page.screenshot({path:'test-results/question/answer.png'});
+  await page.reload();await expect(page.locator('#answer')).toBeHidden();assert.equal(requests,1,'reload cannot restore or resend an image');
+  result={status:'no_content',answer:''};await open();await expect(page.locator('#status')).toHaveText('선택한 영역에서 질문이나 설명할 내용을 찾지 못했어요.');await expect(page.locator('#answer')).toBeHidden();
+  result={status:'unreadable',answer:''};await open();await expect(page.locator('#status')).toHaveText('내용을 읽기 어려워요. 영역을 다시 지정해 주세요.');
+  result={status:'answer',answer:'<img src=x onerror="window.hacked=true">는 평문입니다.'};fail=true;await open();await expect(page.getByRole('button',{name:'다시 시도'})).toBeVisible();await page.getByRole('button',{name:'다시 시도'}).click();await expect(page.locator('#answer')).toContainText('<img');assert.equal(await page.locator('img').count(),0);
+  delay=300;result={status:'answer',answer:'늦은 답변'};await open();await page.evaluate(()=>window.disposeSketchQuestion());await page.waitForTimeout(450);await expect(page.locator('#status')).toHaveText('질문을 종료했어요.');await expect(page.locator('#answer')).toBeHidden();
+  assert.deepEqual(errors,[]);
+  console.log('Question region capture, masking, native pen, ephemeral answer UI and recovery passed.');
+} finally {await browser.close();}
